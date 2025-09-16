@@ -14,48 +14,57 @@ HTML = """
 <html>
   <head>
     <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
     <title>TDMS Desktop - Variant 58</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 16px; }
-      textarea, input, button { margin: 4px; }
-      pre { background: #f5f5f5; padding: 8px; }
-      .row { display:flex; gap:8px; align-items:center; }
-    </style>
+    <script src='https://cdn.tailwindcss.com'></script>
   </head>
-  <body>
-    <h1>TDMS Desktop - Variant 58</h1>
-
-    <h2>Create Table</h2>
-    <div>
-      <input id="tname" placeholder="table name" />
-      <textarea id="schema" rows="3" cols="60" placeholder='[{"name":"id","type":"integer"}]'></textarea>
-      <button onclick="pywebview.api.create_table(tname.value, schema.value).then(refresh)">Create</button>
-    </div>
-
-    <h2>Insert Row</h2>
-    <div>
-      <input id="rtname" placeholder="table name" />
-      <textarea id="values" rows="3" cols="60" placeholder='{"id":1}'></textarea>
-      <button onclick="pywebview.api.insert_row(rtname.value, values.value).then(refresh)">Insert</button>
-    </div>
-
-    <h2>Union</h2>
-    <div class="row">
-      <input id="left" placeholder="left table" />
-      <input id="right" placeholder="right table" />
-      <button onclick="pywebview.api.union(left.value, right.value).then(refresh)">Union</button>
-    </div>
-
-    <h2>Persistence</h2>
-    <div class="row">
-      <input id="path" placeholder="database.json" />
-      <button onclick="pywebview.api.save(path.value).then(refresh)">Save</button>
-      <button onclick="pywebview.api.load(path.value).then(refresh)">Load</button>
-    </div>
-
-    <h2>State</h2>
-    <pre id="state"></pre>
-
+  <body class='min-h-screen bg-slate-950 text-slate-100'>
+    <header class='max-w-6xl mx-auto px-6 py-6'>
+      <h1 class='text-3xl font-bold'>TDMS Desktop <span class='text-indigo-400'>· Variant 58</span></h1>
+      <p class='text-slate-400'>Local database with union operation.</p>
+    </header>
+    <main class='max-w-6xl mx-auto px-6 grid grid-cols-12 gap-6 pb-16'>
+      <section class='col-span-12 lg:col-span-5 space-y-6'>
+        <div class='rounded-2xl border border-slate-800 bg-slate-900/60 p-5'>
+          <h2 class='text-xl font-semibold'>Create Table</h2>
+          <div class='mt-4 space-y-3'>
+            <input id='tname' class='w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500' placeholder='table name'>
+            <textarea id='schema' rows='3' class='w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700' placeholder='[{"name":"id","type":"integer"}]'></textarea>
+            <button class='px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white' onclick='pywebview.api.create_table(tname.value, schema.value).then(refresh)'>Create</button>
+          </div>
+        </div>
+        <div class='rounded-2xl border border-slate-800 bg-slate-900/60 p-5'>
+          <h2 class='text-xl font-semibold'>Insert Row</h2>
+          <div class='mt-4 space-y-3'>
+            <input id='rtname' class='w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700' placeholder='table name'>
+            <textarea id='values' rows='3' class='w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700' placeholder='{"id":1}'></textarea>
+            <button class='px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white' onclick='pywebview.api.insert_row(rtname.value, values.value).then(refresh)'>Insert</button>
+          </div>
+        </div>
+        <div class='rounded-2xl border border-slate-800 bg-slate-900/60 p-5'>
+          <h2 class='text-xl font-semibold'>Union</h2>
+          <div class='mt-4 grid grid-cols-12 gap-3'>
+            <input id='left' class='col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700' placeholder='left table'>
+            <input id='right' class='col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700' placeholder='right table'>
+            <div class='col-span-2'>
+              <button class='w-full px-4 py-2 rounded bg-fuchsia-600 hover:bg-fuchsia-500 text-white' onclick='pywebview.api.union(left.value, right.value).then(refresh)'>Go</button>
+            </div>
+          </div>
+        </div>
+        <div class='rounded-2xl border border-slate-800 bg-slate-900/60 p-5'>
+          <h2 class='text-xl font-semibold'>Persistence</h2>
+          <div class='mt-4 grid grid-cols-12 gap-3'>
+            <input id='path' class='col-span-8 px-3 py-2 rounded bg-slate-800/60 border border-slate-700' placeholder='database.json'>
+            <button class='col-span-2 px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700' onclick='pywebview.api.save(path.value).then(refresh)'>Save</button>
+            <button class='col-span-2 px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700' onclick='pywebview.api.load(path.value).then(refresh)'>Load</button>
+          </div>
+        </div>
+      </section>
+      <section class='col-span-12 lg:col-span-7'>
+        <h2 class='text-xl font-semibold mb-3'>State</h2>
+        <pre id='state' class='rounded-xl border border-slate-800 bg-slate-950/80 p-4 overflow-auto text-sm'></pre>
+      </section>
+    </main>
     <script>
       async function refresh(){
         const state = await pywebview.api.dump();
@@ -107,6 +116,10 @@ class API:
 
     def dump(self) -> dict:
         return self.db.to_json()
+
+    def delete_table(self, name: str) -> dict:
+        self.db.drop_table(name)
+        return {"status": "deleted", "name": name}
 
 
 def main() -> None:

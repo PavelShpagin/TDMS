@@ -1,116 +1,486 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>TDMS DBMS - Variant 58</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-      }
-      input,
-      select,
-      button,
-      textarea {
-        margin: 4px;
-      }
-      pre {
-        background: #f5f5f5;
-        padding: 8px;
-      }
-      .row {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .col {
-        display: inline-block;
-        margin-right: 8px;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Table Database</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      async function createTable() {
-        const name = document.getElementById("tname").value;
-        const schemaText = document.getElementById("schema").value;
-        const schema = JSON.parse(schemaText);
-        const res = await fetch("/create_table", {
-          method: "POST",
+      const TYPE_OPTIONS = [
+        "integer",
+        "real",
+        "char",
+        "string",
+        "date",
+        "dateInvl",
+      ];
+      let tablesCache = [];
+      const expandedTables = new Set();
+      async function api(path, method = "GET", body) {
+        const res = await fetch(path, {
+          method,
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, schema }),
+          body: body ? JSON.stringify(body) : undefined,
         });
-        alert(await res.text());
-        location.reload();
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
       }
-      async function insertRow() {
-        const table = document.getElementById("rtname").value;
-        const values = JSON.parse(document.getElementById("values").value);
-        const res = await fetch("/insert_row", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table, values }),
+      function addColumnRow() {
+        const container = document.getElementById("schema-rows");
+        const row = document.createElement("div");
+        row.className = "grid grid-cols-12 gap-3 items-center";
+        row.innerHTML = `
+        <input class="col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-100" placeholder="column name" />
+        <select class="col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700 text-slate-100"></select>
+        <button class="col-span-2 w-full px-3 py-2 rounded bg-rose-600 hover:bg-rose-500 text-white text-sm whitespace-nowrap flex items-center justify-center" type="button">Remove</button>
+      `;
+        const select = row.querySelector("select");
+        TYPE_OPTIONS.forEach((t) => {
+          const o = document.createElement("option");
+          o.value = t;
+          o.textContent = t;
+          select.appendChild(o);
         });
-        alert(await res.text());
-        location.reload();
+        row.querySelector("button").onclick = () => row.remove();
+        container.appendChild(row);
+      }
+      async function createTable() {
+        const name = document.getElementById("tname").value.trim();
+        const rows = Array.from(
+          document.querySelectorAll("#schema-rows > div")
+        );
+        const schema = rows
+          .map((r) => ({
+            name: r.querySelector("input").value.trim(),
+            type: r.querySelector("select").value,
+          }))
+          .filter((c) => c.name);
+        if (!name) {
+          toast("Error: provide table name", "error");
+          return;
+        }
+        if (schema.length === 0) {
+          toast("Error: add at least one column", "error");
+          return;
+        }
+        try {
+          const res = await api("/create_table", "POST", { name, schema });
+          if (res && res.status === "ok") {
+            await refresh();
+            toast("Success: table created");
+          } else {
+            const msg =
+              typeof res === "string" ? res : res?.detail || "create failed";
+            toast(`Error: ${msg}`, "error");
+          }
+        } catch (e) {
+          toast("Error: create failed", "error");
+        }
+      }
+      function buildInsertForm() {
+        const sel = document.getElementById("insert-table");
+        const name = sel.value;
+        const target = document.getElementById("insert-form");
+        target.innerHTML = "";
+        const t = tablesCache.find((x) => x.name === name);
+        if (!t) return;
+        t.columns.forEach((c) => {
+          const row = document.createElement("div");
+          row.className = "grid grid-cols-12 gap-3 items-center";
+          let control = "";
+          if (c.type === "integer" || c.type === "real") {
+            const step = c.type === "integer" ? "1" : "any";
+            control = `<input data-col="${c.name}" type="number" step="${step}" class="col-span-8 px-3 py-2 rounded bg-slate-800/60 border border-slate-700" placeholder="${c.type}">`;
+          } else if (c.type === "char") {
+            control = `<input data-col="${c.name}" maxlength="1" class="col-span-8 px-3 py-2 rounded bg-slate-800/60 border border-slate-700" placeholder="char">`;
+          } else if (c.type === "string") {
+            control = `<input data-col="${c.name}" class="col-span-8 px-3 py-2 rounded bg-slate-800/60 border border-slate-700" placeholder="string">`;
+          } else if (c.type === "date") {
+            control = `<input data-col="${c.name}" type="date" class="col-span-8 px-3 py-2 rounded bg-slate-800/60 border border-slate-700">`;
+          } else if (c.type === "dateInvl") {
+            control = `<div class="col-span-8 grid grid-cols-2 gap-2"><input data-col="${c.name}" data-range="start" type="date" class="px-3 py-2 rounded bg-slate-800/60 border border-slate-700"><input data-col="${c.name}" data-range="end" type="date" class="px-3 py-2 rounded bg-slate-800/60 border border-slate-700"></div>`;
+          }
+          row.innerHTML = `
+            <div class="col-span-4 text-sm text-slate-300">${c.name} <span class="text-slate-500">(${c.type})</span></div>
+            ${control}
+          `;
+          target.appendChild(row);
+        });
+      }
+
+      async function insertRow() {
+        const table = document.getElementById("insert-table").value;
+        const t = tablesCache.find((x) => x.name === table);
+        if (!t) {
+          toast("Select a table", "error");
+          return;
+        }
+        const values = {};
+        t.columns.forEach((c) => {
+          if (c.type === "dateInvl") {
+            const start = document.querySelector(
+              `[data-col="${c.name}"][data-range="start"]`
+            )?.value;
+            const end = document.querySelector(
+              `[data-col="${c.name}"][data-range="end"]`
+            )?.value;
+            if (start || end) values[c.name] = { start, end };
+          } else {
+            const el = document.querySelector(`[data-col="${c.name}"]`);
+            if (!el) return;
+            let v = el.value;
+            if (v === "") return;
+            if (c.type === "integer") v = parseInt(v, 10);
+            if (c.type === "real") v = parseFloat(v);
+            values[c.name] = v;
+          }
+        });
+        try {
+          const res = await api("/insert_row", "POST", { table, values });
+          if (res && res.status === "ok") {
+            toast("Success: row added", "success");
+            await refresh();
+          } else {
+            toast(`Error: ${res?.detail || "insert failed"}`, "error");
+          }
+        } catch (e) {
+          toast("Insert failed", "error");
+        }
       }
       async function unionTables() {
         const left = document.getElementById("left").value;
         const right = document.getElementById("right").value;
-        const res = await fetch("/union", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ left, right }),
-        });
-        alert(await res.text());
-        location.reload();
+        const name = document.getElementById("union-name")?.value?.trim() || "";
+        try {
+          const res = await api("/union", "POST", {
+            left,
+            right,
+            name: name || undefined,
+          });
+          if (res && res.name) {
+            toast("Union created: " + res.name);
+            await refresh();
+          } else {
+            toast(`Error: ${res?.detail || "union failed"}`, "error");
+          }
+        } catch (e) {
+          toast("Error: union failed", "error");
+        }
       }
+      async function refresh() {
+        const list = await api("/tables");
+        const sel = document.getElementById("insert-table");
+        const lsel = document.getElementById("left");
+        const rsel = document.getElementById("right");
+        [sel, lsel, rsel].forEach((s) => {
+          if (s) s.innerHTML = "";
+        });
+        tablesCache = list.tables || [];
+        tablesCache.forEach((t) => {
+          if (sel) {
+            const o1 = new Option(t.name, t.name);
+            sel.add(o1);
+          }
+          const o2 = new Option(t.name, t.name);
+          lsel.add(o2);
+          const o3 = new Option(t.name, t.name);
+          rsel.add(o3);
+        });
+        if (sel) buildInsertForm();
+        const grid = document.getElementById("tables");
+        grid.innerHTML = "";
+        list.tables.forEach((t) => {
+          const card = document.createElement("div");
+          card.className =
+            "rounded-xl border border-slate-800 bg-slate-950/80 p-4 shadow-xl hover:shadow-2xl transition";
+          card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="min-w-0">
+              <h3 class="text-lg font-semibold text-slate-100 truncate" title="${
+                t.name
+              }">${t.name}</h3>
+              <div class="text-xs text-slate-400 mt-0.5">${
+                t.rowCount
+              } rows</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button data-view="${
+                t.name
+              }" class="view-btn px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200">${
+            expandedTables.has(t.name) ? "Close" : "View"
+          }</button>
+              <button data-name="${
+                t.name
+              }" class="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white delete-btn">Delete</button>
+            </div>
+          </div>
+          <div class="mt-3 text-sm text-slate-300 flex flex-wrap gap-2">
+            ${t.columns
+              .map(
+                (c) =>
+                  `<span class='px-2 py-1 rounded bg-slate-800 border border-slate-700'>${c.name}: ${c.type}</span>`
+              )
+              .join("")}
+          </div>
+          <div class="mt-3 rounded border border-slate-800 hidden${
+            t.rows && t.rows.length > 30 ? " overflow-auto max-h-64" : ""
+          }" data-detail="${t.name}">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-800/90 sticky top-0 z-10">
+                <tr>
+                  ${t.columns
+                    .map(
+                      (c) =>
+                        `<th class='text-left px-3 py-2 font-semibold text-slate-100 border-b border-slate-700 uppercase tracking-wider'>${c.name}</th>`
+                    )
+                    .join("")}
+                  <th class='text-left px-3 py-2 font-semibold text-slate-100 border-b border-slate-700 uppercase tracking-wider'>Add row</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  ${t.columns
+                    .map((c) => {
+                      if (c.type === "date") {
+                        return `<td class='px-3 py-2 border-b border-slate-800'><input data-add-col='${c.name}' type='date' class='w-full px-2 py-1 rounded bg-slate-800/60 border border-slate-700'></td>`;
+                      }
+                      if (c.type === "dateInvl") {
+                        return `<td class='px-3 py-2 border-b border-slate-800'><div class='grid grid-cols-2 gap-1'><input data-add-col='${c.name}' data-range='start' type='date' class='px-2 py-1 rounded bg-slate-800/60 border border-slate-700'><input data-add-col='${c.name}' data-range='end' type='date' class='px-2 py-1 rounded bg-slate-800/60 border border-slate-700'></div></td>`;
+                      }
+                      const typeAttr =
+                        c.type === "integer"
+                          ? "number step='1'"
+                          : c.type === "real"
+                          ? "number step='any'"
+                          : "text";
+                      return `<td class='px-3 py-2 border-b border-slate-800'><input data-add-col='${
+                        c.name
+                      }' type='${typeAttr.split(" ")[0]}' ${
+                        typeAttr.includes("step")
+                          ? `step='${
+                              typeAttr.split("step='")[1]?.split("'")[0]
+                            }'`
+                          : ""
+                      } class='w-full px-2 py-1 rounded bg-slate-800/60 border border-slate-700'></td>`;
+                    })
+                    .join("")}
+                  <td class='px-3 py-2 border-b border-slate-800'><button data-add='${
+                    t.name
+                  }' class='px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white'>Add</button></td>
+                </tr>
+                ${t.rows
+                  .map(
+                    (r) => `
+                  <tr class='even:bg-slate-900/40 hover:bg-slate-900/60'>
+                    ${t.columns
+                      .map((c) => {
+                        const v = (r || {})[c.name];
+                        const rendered =
+                          v &&
+                          typeof v === "object" &&
+                          "start" in v &&
+                          "end" in v
+                            ? `${v.start} → ${v.end}`
+                            : v ?? "";
+                        return `<td class='px-3 py-2 text-slate-300 border-b border-slate-800 truncate' title='${rendered}'>${rendered}</td>`;
+                      })
+                      .join("")}
+                    <td></td>
+                  </tr>
+                `
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        `;
+          grid.appendChild(card);
+          // auto-expand if remembered
+          if (expandedTables.has(t.name)) {
+            const detail = card.querySelector(`[data-detail='${t.name}']`);
+            detail?.classList.remove("hidden");
+          }
+        });
+        Array.from(document.querySelectorAll(".delete-btn")).forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const name = btn.getAttribute("data-name");
+            const res = await api("/delete_table", "POST", { name });
+            if (res && res.status === "deleted")
+              toast(`Success: deleted ${name}`);
+            else toast(`Error: ${res?.detail || "delete failed"}`, "error");
+            expandedTables.delete(name);
+            await refresh();
+          });
+        });
+        // Hook up per-table view: expand/collapse detail inside the same card
+        Array.from(document.querySelectorAll(".view-btn")).forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const name = btn.getAttribute("data-view");
+            const card = btn.closest("div.rounded-xl");
+            const detail = card?.querySelector(`[data-detail='${name}']`);
+            if (!detail) return;
+            const isHidden = detail.classList.contains("hidden");
+            if (isHidden) {
+              detail.classList.remove("hidden");
+              expandedTables.add(name);
+              btn.textContent = "Close";
+            } else {
+              detail.classList.add("hidden");
+              expandedTables.delete(name);
+              btn.textContent = "View";
+            }
+          });
+        });
+
+        // Hook up per-table add buttons
+        Array.from(document.querySelectorAll("[data-add]")).forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const table = btn.getAttribute("data-add");
+            const t = tablesCache.find((x) => x.name === table);
+            if (!t) return;
+            const values = {};
+            t.columns.forEach((c) => {
+              if (c.type === "dateInvl") {
+                const start = btn
+                  .closest("tr")
+                  .querySelector(
+                    `[data-add-col="${c.name}"][data-range="start"]`
+                  )?.value;
+                const end = btn
+                  .closest("tr")
+                  .querySelector(
+                    `[data-add-col="${c.name}"][data-range="end"]`
+                  )?.value;
+                if (start || end) values[c.name] = { start, end };
+              } else {
+                const el = btn
+                  .closest("tr")
+                  .querySelector(`[data-add-col="${c.name}"]`);
+                if (!el) return;
+                let v = el.value;
+                if (v === "") return;
+                if (c.type === "integer") v = parseInt(v, 10);
+                if (c.type === "real") v = parseFloat(v);
+                values[c.name] = v;
+              }
+            });
+            try {
+              const res = await api("/insert_row", "POST", { table, values });
+              if (res && res.status === "ok") {
+                toast("Success: row added");
+                expandedTables.add(table);
+                await refresh();
+              } else {
+                toast(`Error: ${res?.detail || "insert failed"}`, "error");
+              }
+            } catch (e) {
+              toast("Error: insert failed", "error");
+            }
+          });
+        });
+      }
+      function toast(text, type = "success") {
+        const t = document.getElementById("toast");
+        try {
+          t.textContent =
+            typeof text === "string" ? text : JSON.stringify(text);
+        } catch {
+          t.textContent = String(text);
+        }
+        t.classList.remove("opacity-0");
+        t.classList.remove(
+          "bg-emerald-600/90",
+          "border-emerald-500/40",
+          "bg-rose-600/90",
+          "border-rose-500/40"
+        );
+        if (type === "error")
+          t.classList.add("bg-rose-600/90", "border-rose-500/40");
+        else t.classList.add("bg-emerald-600/90", "border-emerald-500/40");
+        setTimeout(() => t.classList.add("opacity-0"), 2500);
+      }
+      document.addEventListener("DOMContentLoaded", () => {
+        addColumnRow();
+        refresh();
+      });
     </script>
   </head>
-  <body>
-    <h1>TDMS DBMS - Variant 58</h1>
+  <body
+    class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100"
+  >
+    <div
+      id="toast"
+      class="fixed top-4 right-4 px-4 py-2 rounded bg-emerald-600/90 backdrop-blur border border-emerald-500/40 shadow-lg transition-opacity opacity-0"
+    ></div>
+    <header class="max-w-7xl mx-auto px-6 py-6">
+      <h1 class="text-3xl font-bold tracking-tight">Table Database</h1>
+      <p class="text-slate-400 mt-1">Create and manage tables</p>
+    </header>
+    <main class="max-w-7xl mx-auto px-6 grid grid-cols-12 gap-6 pb-16">
+      <section class="col-span-12 lg:col-span-5 space-y-6">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+          <h2 class="text-xl font-semibold">Create Table</h2>
+          <div class="mt-4 space-y-3">
+            <input
+              id="tname"
+              class="w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="table name"
+            />
+            <div class="space-y-3" id="schema-rows"></div>
+            <div class="flex items-center gap-3">
+              <button
+                class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700"
+                type="button"
+                onclick="addColumnRow()"
+              >
+                Add column
+              </button>
+              <button
+                class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
+                type="button"
+                onclick="createTable()"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
 
-    <h2>Create Table</h2>
-    <div>
-      <input id="tname" placeholder="table name" />
-      <textarea
-        id="schema"
-        rows="3"
-        cols="60"
-        placeholder='[ {"name":"id","type":"integer"} ]'
-      ></textarea>
-      <button onclick="createTable()">Create</button>
-    </div>
-
-    <h2>Insert Row</h2>
-    <div>
-      <input id="rtname" placeholder="table name" />
-      <textarea
-        id="values"
-        rows="3"
-        cols="60"
-        placeholder='{"id":1}'
-      ></textarea>
-      <button onclick="insertRow()">Insert</button>
-    </div>
-
-    <h2>Union</h2>
-    <div>
-      <input id="left" placeholder="left table" />
-      <input id="right" placeholder="right table" />
-      <button onclick="unionTables()">Union</button>
-    </div>
-
-    <h2>Tables</h2>
-    {% for t in tables %}
-    <h3>{{ t.name }}</h3>
-    <div class="row">
-      <div class="col"><strong>Schema:</strong></div>
-      <div>
-        {% for c in t.columns %}
-        <span class="col">{{ c.name }}: {{ c.type }}</span>
-        {% endfor %}
-      </div>
-    </div>
-    <pre>{{ t.rows | tojson(indent=2) }}</pre>
-    {% endfor %}
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+          <h2 class="text-xl font-semibold">Union</h2>
+          <div class="mt-4 grid grid-cols-12 gap-3">
+            <input
+              id="union-name"
+              placeholder="result table name (optional)"
+              class="col-span-12 px-3 py-2 rounded bg-slate-800/60 border border-slate-700 text-slate-100"
+            />
+            <select
+              id="left"
+              class="col-span-5 min-w-0 truncate px-3 py-2 rounded bg-slate-800/60 border border-slate-700"
+            ></select>
+            <select
+              id="right"
+              class="col-span-5 min-w-0 truncate px-3 py-2 rounded bg-slate-800/60 border border-slate-700"
+            ></select>
+            <div class="col-span-2">
+              <button
+                class="w-full whitespace-nowrap px-4 py-2 rounded bg-fuchsia-600 hover:bg-fuchsia-500 text-white"
+                onclick="unionTables()"
+              >
+                Go
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="col-span-12 lg:col-span-7">
+        <h2 class="text-xl font-semibold mb-3">Tables</h2>
+        <div id="tables" class="grid grid-cols-1 gap-6"></div>
+      </section>
+    </main>
   </body>
 </html>

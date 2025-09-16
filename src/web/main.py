@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from src.core.database import Database
 
 
-app = FastAPI(title="TDMS DBMS - Variant 58")
+app = FastAPI(title="Table Database")
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -55,6 +55,21 @@ async def insert_row(payload: Dict[str, Any]):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get("/tables")
+def list_tables():
+    return {
+        "tables": [
+            {
+                "name": t.name,
+                "columns": [{"name": c.name, "type": c.type_name} for c in t.columns],
+                "rowCount": len(t.rows),
+                "rows": [r.values for r in t.rows],
+            }
+            for t in db.tables.values()
+        ]
+    }
+
+
 @app.get("/view_table/{name}")
 def view_table(name: str):
     try:
@@ -64,24 +79,43 @@ def view_table(name: str):
         raise HTTPException(status_code=404, detail=str(exc))
 
 
+@app.post("/delete_table")
+async def delete_table(payload: Dict[str, Any]):
+    name = payload.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Provide table name")
+    try:
+        db.drop_table(name)
+        return {"status": "deleted", "name": name}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.post("/union")
 async def union_tables_endpoint(payload: Dict[str, Any]):
     from ..core.operations import union_tables
 
     left = payload.get("left")
     right = payload.get("right")
+    requested = payload.get("name")
     if not left or not right:
         raise HTTPException(status_code=400, detail="Provide left and right table names")
     try:
         t1 = db.get_table(left)
         t2 = db.get_table(right)
         res = union_tables(t1, t2)
-        # Store result with a generated name if collision
-        name = res.name
+        # Preferred base name from client or default
+        base = (requested or f"{t1.name}_UNION_{t2.name}").strip()
+        # Cap to reasonable length
+        if len(base) > 60:
+            base = base[:60]
+        name = base
         i = 1
         while name in db.tables:
             i += 1
-            name = f"{res.name}_{i}"
+            suffix = f"_{i}"
+            max_base = 60 - len(suffix)
+            name = (base[:max_base] if len(base) > max_base else base) + suffix
         res.name = name
         db.tables[name] = res
         return res.to_json()

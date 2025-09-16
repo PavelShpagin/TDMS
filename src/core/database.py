@@ -18,6 +18,7 @@ class Database:
             raise ValueError(f"Table '{name}' already exists")
 
         normalized_schema: List[Tuple[str, str]] = []
+        seen: set[str] = set()
         for item in schema:
             if isinstance(item, tuple):
                 col_name, type_name = item
@@ -25,6 +26,10 @@ class Database:
                 col_name, type_name = item["name"], item["type"]
             else:
                 raise ValueError("Invalid schema element; expected tuple or dict")
+            col_name = str(col_name)
+            if col_name in seen:
+                raise ValueError(f"Duplicate column name '{col_name}'")
+            seen.add(col_name)
             normalized_schema.append((col_name, type_name))
 
         table = Table.from_schema(name, normalized_schema)

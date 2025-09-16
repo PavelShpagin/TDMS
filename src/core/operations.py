@@ -19,14 +19,10 @@ def union_tables(table1: Table, table2: Table) -> Table:
         raise ValueError("Schemas do not match for UNION operation")
 
     result = Table(name=f"{table1.name}_UNION_{table2.name}", columns=table1.columns.copy())
-    seen = set()
-    schema_sig = table1.schema_signature()
-
-    for row in table1.get_rows() + table2.get_rows():
-        key = _row_key(row, schema_sig)
-        if key in seen:
-            continue
-        seen.add(key)
+    # Concatenate rows from both tables (keep duplicates if present)
+    for row in table1.get_rows():
+        result.add_row(row)
+    for row in table2.get_rows():
         result.add_row(row)
 
     return result 
