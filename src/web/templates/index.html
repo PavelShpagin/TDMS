@@ -383,6 +383,47 @@
           });
         });
       }
+      async function createDb() {
+        const name = document.getElementById('db-name').value.trim();
+        if (!name) return toast('Error: provide database name', 'error');
+        const res = await api('/create_database', 'POST', { name });
+        if (res && res.status === 'ok') { toast('Success: database created'); refresh(); }
+        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+      }
+      async function switchDb() {
+        const name = document.getElementById('db-name').value.trim();
+        if (!name) return toast('Error: provide database name', 'error');
+        const res = await api('/switch_database', 'POST', { name });
+        if (res && res.status === 'ok') { toast('Success: switched'); refresh(); }
+        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+      }
+      async function saveLocal() {
+        const name = document.getElementById('db-name').value.trim();
+        const res = await api('/save', 'POST', { name: name || undefined });
+        if (res && res.status === 'ok') toast('Saved locally'); else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+      }
+      async function loadLocal() {
+        const name = document.getElementById('db-name').value.trim();
+        if (!name) return toast('Error: provide database name', 'error');
+        const res = await api('/load', 'POST', { name });
+        if (res && res.status === 'ok') { toast('Loaded locally'); refresh(); }
+        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+      }
+      async function saveDrive() {
+        const name = document.getElementById('db-name').value.trim();
+        const folder_id = document.getElementById('drive-folder').value.trim() || undefined;
+        const res = await api('/save_drive', 'POST', { name: name || undefined, folder_id });
+        if (res && res.status === 'ok') toast('Saved to Drive: ' + res.file_id);
+        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+      }
+      async function loadDrive() {
+        const name = document.getElementById('db-name').value.trim();
+        const file_id = document.getElementById('drive-file').value.trim();
+        if (!name || !file_id) return toast('Error: provide database name and file id', 'error');
+        const res = await api('/load_drive', 'POST', { name, file_id });
+        if (res && res.status === 'ok') { toast('Loaded from Drive'); refresh(); }
+        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+      }
       function toast(text, type = "success") {
         const t = document.getElementById("toast");
         try {
@@ -422,6 +463,24 @@
     </header>
     <main class="max-w-7xl mx-auto px-6 grid grid-cols-12 gap-6 pb-16">
       <section class="col-span-12 lg:col-span-5 space-y-6">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+          <h2 class="text-xl font-semibold">Databases</h2>
+          <div class="mt-3 grid grid-cols-12 gap-3 text-sm">
+            <input id="db-name" placeholder="database name" class="col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700"/>
+            <div class="col-span-7 flex gap-2">
+              <button class="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" onclick="createDb()">Create</button>
+              <button class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700" onclick="switchDb()">Switch</button>
+              <button class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700" onclick="saveLocal()">Save</button>
+              <button class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700" onclick="loadLocal()">Load</button>
+            </div>
+            <input id="drive-folder" placeholder="Drive folder id (optional)" class="col-span-7 px-3 py-2 rounded bg-slate-800/60 border border-slate-700"/>
+            <input id="drive-file" placeholder="Drive file id (for load)" class="col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700"/>
+            <div class="col-span-12 flex gap-2">
+              <button class="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white" onclick="saveDrive()">Save to Drive</button>
+              <button class="px-3 py-2 rounded bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onclick="loadDrive()">Load from Drive</button>
+            </div>
+          </div>
+        </div>
         <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
           <h2 class="text-xl font-semibold">Create Table</h2>
           <div class="mt-4 space-y-3">
