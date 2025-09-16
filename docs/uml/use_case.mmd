@@ -1,0 +1,20 @@
+%% Mermaid Use Case Diagram
+flowchart LR
+    user([User])
+    subgraph System [TDMS DBMS]
+        UC1((Create Table))
+        UC2((Insert Row))
+        UC3((Edit Row))
+        UC4((Union Tables))
+        UC5((Save Database))
+        UC6((Load Database))
+        UC7((Delete Table))
+    end
+    user --> UC1
+    user --> UC2
+    user --> UC3
+    user --> UC4
+    user --> UC5
+    user --> UC6
+    user --> UC7
+

@@ -1,0 +1,9 @@
+stateDiagram-v2
+    [*] --> Defined
+    Defined --> Active: rows inserted
+    Active --> Saved: saved to JSON
+    Saved --> Loaded: load from JSON
+    Loaded --> Active
+    Active --> Deleted
+    Deleted --> [*]
+

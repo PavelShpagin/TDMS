@@ -1,0 +1,14 @@
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant DB as Database
+    participant T as Table
+    participant V as TypeValidator
+
+    U->>DB: insert_row("events", values)
+    DB->>T: add_row(values)
+    T->>V: validate_row(schema, values)
+    V-->>T: normalized values
+    T-->>DB: Row
+    DB-->>U: ok
+

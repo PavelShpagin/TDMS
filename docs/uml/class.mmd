@@ -1,0 +1,44 @@
+classDiagram
+    class Database {
+        +str name
+        +dict~str,Table~ tables
+        +create_table(name, schema) Table
+        +drop_table(name) void
+        +get_table(name) Table
+        +insert_row(table_name, values) void
+        +edit_row(table_name, index, values) void
+        +save(path) void
+        +to_json() dict
+        +load(path) Database
+    }
+    class Table {
+        +str name
+        +List~Column~ columns
+        +List~Row~ rows
+        +add_row(values) Row
+        +update_row(index, values) Row
+        +get_rows() List~dict~
+        +schema_signature() Tuple
+        +to_json() dict
+    }
+    class Column {
+        +str name
+        +str type_name
+        +to_json() dict
+    }
+    class Row {
+        +dict values
+        +to_json() dict
+    }
+    class TypeValidator {
+        +normalize(value, type_name) Any
+        +validate_row(schema, values) dict
+    }
+    class Operations {
+        +union_tables(t1: Table, t2: Table) Table
+    }
+    Database --> Table
+    Table --> Column
+    Table --> Row
+    Table --> TypeValidator
+

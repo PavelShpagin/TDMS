@@ -1,0 +1,15 @@
+sequenceDiagram
+    autonumber
+    participant U as User
+    participant DB as Database
+    participant OP as operations.union_tables
+    participant RES as Table
+
+    U->>DB: get_table("A")
+    DB-->>U: Table A
+    U->>DB: get_table("B")
+    DB-->>U: Table B
+    U->>OP: union_tables(A, B)
+    OP-->>RES: Result Table
+    OP-->>U: RES
+

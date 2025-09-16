@@ -1,0 +1,25 @@
+flowchart LR
+    subgraph Core
+        A[Validator]
+        B[Table]
+        C[Database]
+        D[Operations]
+    end
+    subgraph Desktop
+        E[PyWebview UI]
+    end
+    subgraph Web
+        F[FastAPI]
+        G[Jinja2 Templates]
+    end
+    subgraph Persistence
+        H[JSON Files]
+    end
+    A --> B
+    B --> C
+    D --> B
+    C --> H
+    F --> C
+    E --> C
+    G --> F
+

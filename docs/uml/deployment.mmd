@@ -1,0 +1,14 @@
+flowchart LR
+    subgraph Workstation
+        D[Desktop App\nPyWebview]
+    end
+    subgraph Server
+        W[Web App\nFastAPI]
+    end
+    subgraph Storage
+        J[JSON files]
+    end
+    D <---> J
+    W <---> J
+    Browser((Browser)) --> W
+

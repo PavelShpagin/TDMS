@@ -1,0 +1,9 @@
+flowchart TD
+    A[Start] --> B[User submits values]
+    B --> C[Validate against schema]
+    C -->|valid| D[Normalize values]
+    C -->|invalid| E[Error]
+    D --> F[Append Row]
+    F --> G[End]
+    E --> G
+
