@@ -1,0 +1,40 @@
+@startuml sequence_union
+!theme plain
+title Combining Two Tables (Union)
+
+actor User
+participant "Web Interface" as UI
+participant "Server" as API
+participant "Database" as DB
+participant "Union Operation" as Union
+
+User -> UI: Select two tables
+UI -> API: POST /union
+API -> DB: get_table(table1)
+API -> DB: get_table(table2)
+
+API -> Union: union_tables(t1, t2)
+
+Union -> Union: Check schemas
+alt Schemas compatible
+  Union -> Union: Create result table
+  Union -> Union: Copy rows from table1
+  Union -> Union: Copy rows from table2
+  Union -> Union: Fill missing columns with null
+  Union --> API: New combined table
+  API -> DB: Add result table
+  API --> UI: Success
+  UI --> User: Show combined table
+else Schemas incompatible
+  Union --> API: Error
+  API --> UI: Can't combine
+  UI --> User: "Tables don't match"
+end
+
+note over Union
+  Variant #58 operation:
+  Combines all rows from
+  both tables into one
+end note
+
+@enduml

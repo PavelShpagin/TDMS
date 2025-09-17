@@ -1,66 +1,40 @@
 @startuml deployment
 !theme plain
-title TDMS - Deployment Diagram with Cloud Integration
+title TDMS - Where Everything Runs
 
-node "Client Machine" <<device>> {
-  node "Web Browser" <<browser>> {
-    artifact "Web Interface" <<HTML/JS>>
+node "Your Computer" {
+  component "Web Browser" {
+    artifact "TDMS Interface"
   }
   
-  node "Desktop App" <<PyWebView>> {
-    artifact "TDMS-Desktop.exe" <<executable>>
-  }
-}
-
-node "Application Server" <<server>> {
-  node "Python Runtime" {
-    component "FastAPI" <<service>> {
-      artifact "web/main.py"
-    }
-    
-    component "Core Logic" <<library>> {
-      artifact "database.py"
-      artifact "table.py"
-      artifact "operations.py"
-      artifact "validator.py"
-    }
-    
-    component "Uvicorn" <<ASGI>>
-  }
-}
-
-node "Local Storage" <<filesystem>> {
-  artifact "databases/*.json" <<JSON>>
-}
-
-cloud "Google Cloud" <<cloud>> {
-  node "Google Drive" <<storage>> {
-    artifact "Database files" <<JSON>>
+  component "Python Server" {
+    artifact "FastAPI (port 8000)"
+    artifact "Core Logic"
   }
   
-  node "Auth Service" <<OAuth>> {
-    artifact "Service Account" <<credentials>>
+  database "Local Storage" {
+    artifact "database.json files"
   }
 }
 
-' Connections
-"Web Browser" --> "FastAPI" : HTTP:8000
-"Desktop App" --> "FastAPI" : localhost:8000
-"FastAPI" --> "Core Logic" : imports
-"Core Logic" --> "Local Storage" : read/write
-"FastAPI" --> "Google Drive" : Drive API v3
-"Google Drive" --> "Auth Service" : OAuth 2.0
+cloud "Google Cloud" {
+  database "Google Drive" {
+    artifact "Backup JSON files"
+  }
+  
+  component "Auth Service" {
+    artifact "Service Account"
+  }
+}
 
-note right of "Google Cloud"
-  Service Account Auth:
-  - GOOGLE_SERVICE_ACCOUNT_INFO
-  - GOOGLE_SERVICE_ACCOUNT_FILE
-end note
+[Web Browser] --> [Python Server] : localhost:8000
+[Python Server] --> [Local Storage] : Read/Write
+[Python Server] --> [Google Drive] : Upload/Download
+[Google Drive] --> [Auth Service] : Authenticate
 
-note bottom of "Core Logic"
-  Variant 58:
-  - Union operation
-  - date/dateInvl types
+note bottom of "Your Computer"
+  Everything runs locally
+  Google Drive is optional
 end note
 
 @enduml

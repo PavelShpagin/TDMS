@@ -1,108 +1,53 @@
 @startuml use_case
 !theme plain
-title TDMS DBMS - Use Case Diagram (Actual Implementation)
+title TDMS - What Users Can Do
 
 left to right direction
-skinparam packageStyle rectangle
 skinparam actorStyle awesome
 
-actor "User" as user
-actor "Google Drive API" as gdrive
+actor User
+actor "Google Drive" as GDrive
 
-rectangle "Database Management" {
-  usecase "Create Database" as UC1
-  usecase "Switch Database" as UC2
-  usecase "Rename Database" as UC3
-  usecase "Delete Database" as UC4
-  usecase "List Databases" as UC5
+rectangle "Working with Databases" {
+  usecase "Create new database" as UC1
+  usecase "Switch between databases" as UC2
+  usecase "Delete database" as UC3
 }
 
-rectangle "Table Operations" {
-  usecase "Create Table" as UC6
-  usecase "Drop Table" as UC7
-  usecase "List Tables" as UC8
-  usecase "View Table Data" as UC9
-  usecase "Insert Row" as UC10
-  usecase "Edit Row" as UC11
-  usecase "Union Tables" as UC12
+rectangle "Working with Tables" {
+  usecase "Create table" as UC4
+  usecase "Add data to table" as UC5
+  usecase "View table contents" as UC6
+  usecase "Combine two tables" as UC7
+  usecase "Delete table" as UC8
 }
 
-rectangle "Persistence" {
-  usecase "Save to Local JSON" as UC13
-  usecase "Load from Local JSON" as UC14
-  usecase "Import Database" as UC15
-  usecase "Save to Google Drive" as UC16
-  usecase "Load from Google Drive" as UC17
-  usecase "List Drive Files" as UC18
+rectangle "Saving Your Work" {
+  usecase "Save locally" as UC9
+  usecase "Load from file" as UC10
+  usecase "Save to Google Drive" as UC11
+  usecase "Load from Google Drive" as UC12
 }
 
-rectangle "Type Validation" {
-  usecase "Validate Integer" as UC19
-  usecase "Validate Real" as UC20
-  usecase "Validate Char" as UC21
-  usecase "Validate String" as UC22
-  usecase "Validate Date" as UC23
-  usecase "Validate DateInvl" as UC24
-}
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC4
+User --> UC5
+User --> UC6
+User --> UC7
+User --> UC8
+User --> UC9
+User --> UC10
+User --> UC11
+User --> UC12
 
-' User to Database Management
-user --> UC1
-user --> UC2
-user --> UC3
-user --> UC4
-user --> UC5
+UC11 ..> GDrive : uploads
+UC12 ..> GDrive : downloads
 
-' User to Table Operations
-user --> UC6
-user --> UC7
-user --> UC8
-user --> UC9
-user --> UC10
-user --> UC11
-user --> UC12
-
-' User to Persistence
-user --> UC13
-user --> UC14
-user --> UC15
-user --> UC16
-user --> UC17
-user --> UC18
-
-' Google Drive interactions
-UC16 ..> gdrive : <<uses>>
-UC17 ..> gdrive : <<uses>>
-UC18 ..> gdrive : <<uses>>
-
-' Type validation includes
-UC10 ..> UC19 : <<include>>
-UC10 ..> UC20 : <<include>>
-UC10 ..> UC21 : <<include>>
-UC10 ..> UC22 : <<include>>
-UC10 ..> UC23 : <<include>>
-UC10 ..> UC24 : <<include>>
-
-UC11 ..> UC19 : <<include>>
-UC11 ..> UC20 : <<include>>
-UC11 ..> UC21 : <<include>>
-UC11 ..> UC22 : <<include>>
-UC11 ..> UC23 : <<include>>
-UC11 ..> UC24 : <<include>>
-
-note right of UC12
-  Variant 58: Union operation
-  Combines tables with
-  compatible schemas
-end note
-
-note bottom of UC23
-  Variant 58: date type
-  Format: YYYY-MM-DD
-end note
-
-note bottom of UC24
-  Variant 58: dateInvl type
-  Format: {start, end}
+note right of UC7
+  Union operation
+  (Your variant #58)
 end note
 
 @enduml

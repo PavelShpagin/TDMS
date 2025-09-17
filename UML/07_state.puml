@@ -1,81 +1,58 @@
 @startuml state
 !theme plain
-title TDMS - State Diagram: Database Lifecycle
+title TDMS - System States
 
-[*] --> Initialize
+[*] --> Starting
 
-state Initialize {
-  [*] --> CheckStorage
-  CheckStorage : Check for existing DBs
-  CheckStorage --> LoadExisting : Found
-  CheckStorage --> CreateNew : Not found
-  LoadExisting --> Ready
-  CreateNew --> Ready
-}
+Starting --> Ready : Load databases
+Starting --> Ready : Create new
 
 state Ready {
   [*] --> Idle
   
-  Idle --> TableOperations : User action
-  Idle --> DataOperations : User action
-  Idle --> Persistence : Save/Load
+  Idle --> Working : User action
   
-  state TableOperations {
-    [*] --> SelectOp
-    SelectOp --> CreateTable : Create
-    SelectOp --> DropTable : Drop
-    SelectOp --> UnionTables : Union
-    CreateTable --> [*]
-    DropTable --> [*]
-    UnionTables --> [*]
-  }
-  
-  state DataOperations {
-    [*] --> InsertRow
-    InsertRow --> ValidateData : Submit
-    ValidateData --> InsertRow : Invalid
-    ValidateData --> [*] : Valid
-  }
-  
-  state Persistence {
-    [*] --> ChooseMethod
-    ChooseMethod --> LocalSave : Local
-    ChooseMethod --> GoogleDrive : Cloud
+  state Working {
+    [*] --> Choose
+    Choose --> ManagingDB : Database ops
+    Choose --> ManagingTable : Table ops
+    Choose --> SavingData : Save/Load
     
-    state GoogleDrive {
-      [*] --> Authenticate
-      Authenticate --> Upload : Save
-      Authenticate --> Download : Load
-      Upload --> [*]
-      Download --> [*]
-    }
-    
-    LocalSave --> [*]
+    ManagingDB --> Choose
+    ManagingTable --> Choose
+    SavingData --> Choose
   }
   
-  TableOperations --> Idle
-  DataOperations --> Idle
-  Persistence --> Idle
+  Working --> Idle : Done
 }
 
-Ready --> Shutdown : Exit
-
-state Shutdown {
-  [*] --> SaveChanges
-  SaveChanges --> Cleanup
-  Cleanup --> [*]
+state ManagingDB {
+  Create : Create database
+  Switch : Switch database
+  Delete : Delete database
 }
 
-Shutdown --> [*]
+state ManagingTable {
+  CreateTable : Create table
+  InsertData : Add rows
+  ViewData : View table
+  UnionTables : Combine tables
+}
 
-note right of GoogleDrive
-  Service Account auth
-  Drive API v3
-end note
+state SavingData {
+  SaveLocal : Save to file
+  LoadLocal : Load from file
+  SaveCloud : Save to Google
+  LoadCloud : Load from Google
+}
 
-note left of DataOperations
-  Type validation:
-  date, dateInvl
+Ready --> Closing : Exit
+
+Closing --> [*] : Shutdown
+
+note right of UnionTables
+  Variant #58
+  special operation
 end note
 
 @enduml

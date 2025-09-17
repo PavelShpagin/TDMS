@@ -1,97 +1,52 @@
 @startuml component
 !theme plain
-title TDMS - Component Diagram with Google Drive Integration
+title TDMS - System Components
 
-package "TDMS System" {
-  
-  package "Presentation Layer" {
-    component [Web UI] <<HTML/CSS/JS>> {
-      port "HTTP" as web_port
-    }
-    
-    component [Desktop UI] <<PyWebView>> {
-      port "Embedded" as desktop_port
-    }
-  }
-  
-  package "Application Layer" {
-    component [FastAPI Server] <<Web Service>> {
-      port "REST API" as rest_api
-    }
-    
-    component [API Endpoints] <<Controllers>> {
-      port "Handlers" as handlers
-    }
-  }
-  
-  package "Business Logic" {
-    component [Core Module] <<Domain>> {
-      port "DB Ops" as db_ops
-      port "Validation" as validation
-    }
-    
-    component [Database] <<Entity>>
-    component [Table] <<Entity>>
-    component [TypeValidator] <<Service>>
-    component [Operations] <<Service>>
-  }
-  
-  package "Persistence Layer" {
-    component [Local Storage] <<JSON>> {
-      port "File I/O" as local_io
-    }
-    
-    component [Google Drive] <<Cloud>> {
-      port "Drive API" as drive_api
-    }
-    
-    component [Drive Service] <<Adapter>> {
-      port "Auth" as auth
-    }
-  }
+package "User Interface" {
+  [Web Browser]
+  [Desktop App]
 }
 
-cloud "Google Cloud Platform" {
-  component [Drive API v3] <<Service>>
-  component [OAuth 2.0] <<Auth>>
+package "Server" {
+  [FastAPI Web Server]
+  [API Endpoints]
 }
 
-' UI connections
-[Web UI] --> rest_api
-[Desktop UI] --> desktop_port
+package "Core System" {
+  [Database Manager]
+  [Table Manager]
+  [Type Validator]
+  [Union Operation]
+}
 
-' API to Core
-rest_api --> handlers
-handlers --> db_ops
-handlers --> validation
+package "Storage" {
+  [Local Files]
+  [Google Drive]
+}
 
-' Core relationships
-db_ops --> [Database]
-[Database] --> [Table]
-[Table] --> [TypeValidator]
-[Operations] --> [Table]
+[Web Browser] --> [FastAPI Web Server] : HTTP
+[Desktop App] --> [FastAPI Web Server] : localhost
 
-' Persistence connections
-[Database] --> local_io
-handlers --> drive_api
-drive_api --> auth
-auth --> [Drive Service]
+[FastAPI Web Server] --> [API Endpoints]
 
-' Google Cloud connections
-[Drive Service] ..> [OAuth 2.0] : authenticate
-[Drive Service] ..> [Drive API v3] : upload/download
+[API Endpoints] --> [Database Manager]
+[API Endpoints] --> [Table Manager]
+[API Endpoints] --> [Union Operation]
 
-note right of [Operations]
-  Union tables (Variant 58)
+[Table Manager] --> [Type Validator]
+
+[Database Manager] --> [Local Files] : JSON
+[Database Manager] --> [Google Drive] : API
+
+note bottom of [Type Validator]
+  Validates:
+  date, dateInvl
+  (Variant #58)
 end note
 
-note bottom of [TypeValidator]
-  date, dateInvl types
-end note
-
-note top of [Google Drive]
-  Service Account auth
-  JSON file storage
+note bottom of [Union Operation]
+  Combines tables
+  (Variant #58)
 end note
 
 @enduml

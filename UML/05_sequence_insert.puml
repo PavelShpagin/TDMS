@@ -1,0 +1,45 @@
+@startuml sequence_insert
+!theme plain
+title Adding Data to a Table
+
+actor User
+participant "Web Interface" as UI
+participant "FastAPI Server" as API
+participant "Database" as DB
+participant "Table" as Table
+participant "Type Validator" as Validator
+
+User -> UI: Enter row data
+UI -> API: POST /insert_row
+API -> DB: get_table(name)
+DB -> Table: Return table
+
+API -> Table: add_row(values)
+Table -> Validator: validate_row(schema, values)
+
+alt Each column value
+  Validator -> Validator: Check type
+  note right
+    integer → int
+    real → float
+    char → 1 character
+    string → text
+    date → YYYY-MM-DD
+    dateInvl → {start, end}
+  end note
+end
+
+alt Validation successful
+  Validator --> Table: Validated data
+  Table -> Table: Store row
+  Table --> API: Success
+  API --> UI: Row added
+  UI --> User: Show success
+else Validation failed
+  Validator --> Table: Error
+  Table --> API: Invalid data
+  API --> UI: Error message
+  UI --> User: Show what's wrong
+end
+
+@enduml

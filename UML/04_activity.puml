@@ -1,75 +1,67 @@
 @startuml activity
 !theme plain
-title TDMS - Activity Diagram: Database Operations with Google Drive
+title TDMS - Creating and Using a Table
 
 start
 
-:User opens TDMS application;
+:Open TDMS;
 
-partition "Database Management" {
-  if (Load existing database?) then (yes)
-    if (From Google Drive?) then (yes)
-      :Authenticate with Google;
-      :List available JSON files;
-      :Select file from Drive;
-      :Download and load database;
-    else (local)
-      :Select local JSON file;
-      :Load database from file;
-    endif
-  else (create new)
-    :Enter database name;
-    :Create empty database;
+if (Need existing data?) then (yes)
+  if (From Google Drive?) then (yes)
+    :Connect to Google;
+    :Select file;
+    :Download database;
+  else (no)
+    :Open local file;
   endif
-}
+else (no)
+  :Create new database;
+endif
 
-:Database active;
+:Choose what to do;
 
-partition "Table Operations" {
-  switch (Select operation)
-  case (Create Table)
-    :Enter table name;
-    :Define columns with types;
+if (Create table?) then (yes)
+  :Enter table name;
+  :Add columns;
+  repeat
+    :Column name;
+    :Column type;
     note right
-      Types: integer, real, char,
-      string, date, dateInvl
+      Types available:
+      • integer
+      • real  
+      • char
+      • string
+      • date
+      • dateInvl
     end note
-    :Validate schema;
-    :Create table;
-  case (Insert Row)
-    :Select table;
-    :Enter values for each column;
+  repeat while (More columns?)
+  :Create table;
+  
+  :Add data;
+  repeat
+    :Enter values;
     :Validate types;
     :Insert row;
-  case (Union Tables)
-    :Select first table;
-    :Select second table;
-    :Check schema compatibility;
-    if (Schemas compatible?) then (yes)
-      :Perform union;
-      :Create result table;
-    else (no)
-      :Show incompatibility error;
-    endif
-  case (Drop Table)
-    :Select table;
-    :Confirm deletion;
-    :Remove table;
-  endswitch
-}
+  repeat while (More rows?)
+  
+elseif (Union tables?) then (yes)
+  :Select first table;
+  :Select second table;
+  :Check compatibility;
+  :Combine tables;
+  :Show result;
+else (view)
+  :Select table;
+  :Display contents;
+endif
 
-partition "Save Operations" {
-  if (Save to Google Drive?) then (yes)
-    :Serialize database to JSON;
-    :Upload to Google Drive;
-    :Get file ID;
-    :Show success with ID;
-  else (local)
-    :Serialize database to JSON;
-    :Save to local file;
-    :Show save location;
-  endif
-}
+:Save work;
+if (Save to cloud?) then (yes)
+  :Upload to Google Drive;
+else (no)
+  :Save locally;
+endif
 
 stop
 

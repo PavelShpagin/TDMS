@@ -1,82 +1,66 @@
 @startuml class_core
 !theme plain
-title TDMS Core - Class Diagram
+title TDMS - Core System Structure
 
-package "src.core" {
+package "Core System" {
   class Database {
-    - name: str
-    - tables: Dict[str, Table]
+    name: String
+    tables: Dictionary
     --
-    + create_table(name: str, schema: List) : Table
-    + drop_table(name: str) : void
-    + get_table(name: str) : Table
-    + insert_row(table_name: str, values: Dict) : void
-    + to_json() : Dict[str, Any]
-    + save(file_path: Path) : void
-    + {static} from_json(data: Dict) : Database
-    + {static} load(file_path: Path) : Database
+    create_table(name, columns)
+    drop_table(name)
+    get_table(name)
+    insert_row(table, data)
+    edit_row(table, index, data)
+    save(filepath)
+    load(filepath)
   }
 
   class Table {
-    - name: str
-    - columns: List[Column]
-    - rows: List[Row]
+    name: String
+    columns: List
+    rows: List
     --
-    + add_row(values: Dict[str, Any]) : Row
-    + get_rows() : List[Dict[str, Any]]
-    + schema_signature() : Tuple[Tuple[str, str]]
-    + to_json() : Dict[str, Any]
-    + {static} from_json(data: Dict) : Table
-    + {static} from_schema(name: str, schema: List) : Table
-    # {property} schema : List[Tuple[str, str]]
+    add_row(data)
+    update_row(index, data)
+    get_rows()
   }
 
   class Column {
-    - name: str
-    - type_name: str
-    --
-    + to_json() : Dict[str, str]
-    + {static} from_json(data: Dict) : Column
+    name: String
+    type: String
   }
 
   class Row {
-    - values: Dict[str, Any]
-    --
-    + to_json() : Dict[str, Any]
-    + {static} from_json(data: Dict) : Row
+    values: Dictionary
   }
 
   class TypeValidator {
-    - {static} TYPE_VALIDATORS: Dict[str, Callable]
     --
-    + {static} normalize_integer(value: Any) : int
-    + {static} normalize_real(value: Any) : float
-    + {static} normalize_char(value: Any) : str
-    + {static} normalize_string(value: Any) : str
-    + {static} normalize_date(value: Any) : str
-    + {static} normalize_dateInvl(value: Any) : Dict
-    + {static} normalize(value: Any, type_name: str) : Any
-    + {static} validate_row(schema: List, values: Dict) : Dict
+    validate_integer(value)
+    validate_real(value)
+    validate_char(value)
+    validate_string(value)
+    validate_date(value)
+    validate_dateInvl(value)
   }
 
   class Operations {
     --
-    + {static} union_tables(table1: Table, table2: Table) : Table
-    - {static} _row_key(row_values: Dict, schema: Tuple) : Tuple
+    union_tables(table1, table2)
   }
-
-  ' Relationships
-  Database "1" *-- "0..*" Table : contains
-  Table "1" *-- "1..*" Column : defines
-  Table "1" *-- "0..*" Row : stores
-  Table ..> TypeValidator : validates
-  Operations ..> Table : combines
-
-  note right of TypeValidator
-    Variant 58 types:
-    - date (YYYY-MM-DD)
-    - dateInvl (interval)
-  end note
 }
+
+Database --> Table : contains many
+Table --> Column : has many
+Table --> Row : stores many
+Table ..> TypeValidator : uses for validation
+Operations ..> Table : combines
+
+note right of TypeValidator
+  Your variant #58:
+  - date (YYYY-MM-DD)
+  - dateInvl (date ranges)
+end note
 
 @enduml

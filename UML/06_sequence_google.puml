@@ -1,0 +1,59 @@
+@startuml sequence_google
+!theme plain
+title Saving to Google Drive
+
+actor User
+participant "Web Interface" as UI
+participant "FastAPI Server" as API
+participant "Google Service" as GService
+participant "Google Drive" as Drive
+
+== Saving Database ==
+
+User -> UI: Click "Save to Drive"
+UI -> API: POST /save_drive
+
+API -> API: Get current database
+API -> API: Convert to JSON
+
+API -> GService: Authenticate
+note right
+  Using service account
+  credentials from .env
+end note
+
+GService -> Drive: Upload file
+Drive --> GService: File ID
+GService --> API: Upload complete
+
+API --> UI: Success + File ID
+UI --> User: "Saved to Drive!"
+
+== Loading Database ==
+
+User -> UI: Click "Load from Drive"
+UI -> API: GET /drive_files
+
+API -> GService: List JSON files
+GService -> Drive: Query files
+Drive --> GService: File list
+GService --> API: Available files
+
+API --> UI: Show file list
+UI --> User: Select a file
+
+User -> UI: Choose file
+UI -> API: POST /load_drive
+
+API -> GService: Download file
+GService -> Drive: Get file content
+Drive --> GService: JSON data
+GService --> API: File content
+
+API -> API: Parse JSON
+API -> API: Create database
+
+API --> UI: Database loaded
+UI --> User: "Ready to use!"
+
+@enduml
