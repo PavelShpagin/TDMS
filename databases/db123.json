@@ -1,0 +1,33 @@
+{
+  "name": "db123",
+  "tables": [
+    {
+      "name": "123",
+      "columns": [
+        {
+          "name": "123",
+          "type": "integer"
+        },
+        {
+          "name": "4333",
+          "type": "integer"
+        }
+      ],
+      "rows": []
+    },
+    {
+      "name": "123_UNION_123",
+      "columns": [
+        {
+          "name": "123",
+          "type": "integer"
+        },
+        {
+          "name": "4333",
+          "type": "integer"
+        }
+      ],
+      "rows": []
+    }
+  ]
+}

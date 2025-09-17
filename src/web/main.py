@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -44,10 +44,70 @@ STATIC_DIR = BASE_DIR / "static"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# Multi-database registry
+# In-memory OAuth state store for desktop loopback flow
+_oauth_states: Dict[str, Dict[str, Any]] = {}
+
+@app.on_event("startup")
+async def startup_event():
+    """Load existing databases on startup"""
+    global _db_registry
+    if DB_STORAGE_DIR.exists():
+        for db_file in DB_STORAGE_DIR.glob("*.json"):
+            db_name = db_file.stem
+            if db_name not in _db_registry:
+                try:
+                    _db_registry[db_name] = Database.load(str(db_file))
+                    print(f"Loaded database: {db_name}")
+                except Exception as e:
+                    print(f"Warning: Could not load database {db_name}: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Save all databases on shutdown"""
+    print("Saving all databases...")
+    for db_name in _db_registry:
+        _save_database(db_name)
+		
+    print("All databases saved.")
+
+# Multi-database registry with persistence
 _db_registry: Dict[str, Database] = {}
 _active_db_name: str = "default"
-_db_registry[_active_db_name] = Database(name=_active_db_name)
+
+# Database persistence settings
+DB_STORAGE_DIR = Path("databases")
+DB_STORAGE_DIR.mkdir(exist_ok=True)
+
+def _get_db_file_path(db_name: str) -> Path:
+    """Get the file path for a database"""
+    return DB_STORAGE_DIR / f"{db_name}.json"
+
+def _load_or_create_database(db_name: str) -> Database:
+    """Load database from file or create new one"""
+    db_file = _get_db_file_path(db_name)
+    if db_file.exists():
+        try:
+            return Database.load(str(db_file))
+        except Exception as e:
+            print(f"Warning: Could not load database {db_name}: {e}")
+            print(f"Creating new database instead.")
+    return Database(name=db_name)
+
+def _save_database(db_name: str) -> None:
+    """Save database to file"""
+    if db_name in _db_registry:
+        try:
+            db_file = _get_db_file_path(db_name)
+            _db_registry[db_name].save(str(db_file))
+        except Exception as e:
+            print(f"Warning: Could not save database {db_name}: {e}")
+
+def _auto_save_active_db() -> None:
+    """Automatically save the active database"""
+    _save_database(_active_db_name)
+
+# Initialize default database with persistence
+_db_registry[_active_db_name] = _load_or_create_database(_active_db_name)
 
 
 def get_db() -> Database:
@@ -56,33 +116,126 @@ def get_db() -> Database:
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-	# Detect Google OAuth client id (env first, then secrets/client_secret_*.json)
-	client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
-	if not client_id:
-		try:
-			root = Path.cwd()
-			secrets_dir = root / "secrets"
-			candidates: List[Path] = []
-			candidates += list(root.glob("client_secret*.json"))
-			candidates += list((BASE_DIR.parent.parent).glob("client_secret*.json"))
-			candidates += list(secrets_dir.glob("client_secret*.json")) if secrets_dir.exists() else []
-			gp_secrets = (BASE_DIR.parent.parent / "secrets")
-			candidates += list(gp_secrets.glob("client_secret*.json")) if gp_secrets.exists() else []
-			for f in candidates:
-				data = json.loads(f.read_text(encoding="utf-8"))
-				if "web" in data and "client_id" in data["web"]:
-					client_id = data["web"]["client_id"]
-					break
-		except Exception:
-			client_id = None
-	context = {
-		"request": request,
-		"tables": [t.to_json() for t in get_db().tables.values()],
-		"google_client_id": client_id or "",
-		"google_api_key": os.getenv("GOOGLE_API_KEY", ""),
-		"google_app_id": os.getenv("GOOGLE_PICKER_APP_ID", ""),
-	}
-	return templates.TemplateResponse("index.html", context)
+    # Detect if this is desktop mode (check user agent and port)
+    user_agent = request.headers.get("user-agent", "").lower()
+    port = request.url.port
+    is_desktop = (
+        "pywebview" in user_agent or  # PyWebView user agent
+        (port != 8000 and port is not None)  # Not standard web port
+    )
+    
+    print(f"DEBUG: User-Agent: {user_agent}")
+    print(f"DEBUG: Port: {port}")
+    print(f"DEBUG: Is Desktop: {is_desktop}")
+    
+    # Detect Google OAuth client id and secret (env first, then secrets/client_secret_*.json)
+    if is_desktop:
+        # For desktop mode, use DESKTOP_ prefixed variables first
+        client_id = os.getenv("DESKTOP_GOOGLE_OAUTH_CLIENT_ID")
+        client_secret = os.getenv("DESKTOP_GOOGLE_OAUTH_CLIENT_SECRET")
+        print(f"DEBUG: Desktop env vars - client_id: {client_id[:20] + '...' if client_id else 'None'}, client_secret: {'***' if client_secret else 'None'}")
+    else:
+        # For web mode, use regular variables
+        client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+        print(f"DEBUG: Web env vars - client_id: {client_id[:20] + '...' if client_id else 'None'}, client_secret: {'***' if client_secret else 'None'}")
+    
+    if not client_id:  # Load Google config from JSON files as fallback
+        try:
+            root = Path.cwd()
+            secrets_dir = root / "secrets"
+            candidates: List[Path] = []
+            candidates += list(root.glob("client_secret*.json"))
+            candidates += list((BASE_DIR.parent.parent).glob("client_secret*.json"))
+            candidates += list(secrets_dir.glob("client_secret*.json")) if secrets_dir.exists() else []
+            gp_secrets = (BASE_DIR.parent.parent / "secrets")
+            candidates += list(gp_secrets.glob("client_secret*.json")) if gp_secrets.exists() else []
+            
+            for f in candidates:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                
+                if is_desktop:
+                    # For desktop, prioritize "installed" type credentials
+                    if "installed" in data and "client_id" in data["installed"]:
+                        client_id = data["installed"]["client_id"]
+                        client_secret = data["installed"]["client_secret"]
+                        print(f"Desktop using credentials from: {f.name}")
+                        break
+                else:
+                    # For web, prioritize "web" type credentials
+                    if "web" in data and "client_id" in data["web"]:
+                        client_id = data["web"]["client_id"]
+                        client_secret = data["web"]["client_secret"]
+                        print(f"Web using credentials from: {f.name}")
+                        break
+                        
+            # Fallback: if no matching type found, use any available
+            if not client_id:
+                for f in candidates:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    if "web" in data and "client_id" in data["web"]:
+                        client_id = data["web"]["client_id"]
+                        client_secret = data["web"]["client_secret"]
+                        break
+                    elif "installed" in data and "client_id" in data["installed"]:
+                        client_id = data["installed"]["client_id"]
+                        client_secret = data["installed"]["client_secret"]
+                        break
+        except Exception as e:
+            print(f"Error loading credentials: {e}")
+            client_id = None
+            client_secret = None
+    
+    context = {
+        "request": request,
+        "tables": [t.to_json() for t in get_db().tables.values()],
+        "google_client_id": client_id or "",  # Enable Google for both web and desktop
+        "google_client_secret": client_secret or "",  # Enable Google for both web and desktop
+        "google_api_key": os.getenv("GOOGLE_API_KEY", "") if not is_desktop else "",
+        "google_app_id": os.getenv("GOOGLE_PICKER_APP_ID", "") if not is_desktop else "",
+        "is_desktop": is_desktop,
+    }
+    return templates.TemplateResponse("index.html", context)
+
+
+# ---- Desktop OAuth (Loopback) helpers ----
+@app.get("/oauth/callback")
+def oauth_callback(request: Request):
+    """Desktop loopback redirect target. Stores code by state and shows a tiny page."""
+    try:
+        params = dict(request.query_params)
+        state = params.get("state")
+        code = params.get("code")
+        error = params.get("error")
+        if state:
+            _oauth_states[state] = {
+                "code": code,
+                "error": error,
+            }
+        # Minimal page that can be auto-closed by the user
+        html = """
+<!doctype html>
+<html><head><meta charset=\"utf-8\"><title>Authentication complete</title></head>
+<body style=\"font-family:system-ui,Segoe UI,Arial,sans-serif;\">
+  <h3>Authentication complete</h3>
+  <p>You can close this window and return to the app.</p>
+</body></html>
+"""
+        return HTMLResponse(content=html)
+    except Exception as exc:  # pragma: no cover
+        return HTMLResponse(content=f"Error: {exc}", status_code=400)
+
+
+@app.get("/oauth/poll")
+def oauth_poll(state: str | None = None):
+    """Client polls for an authorization code using the provided state."""
+    if not state:
+        return JSONResponse({"status": "error", "detail": "missing state"}, status_code=400)
+    data = _oauth_states.get(state)
+    if not data:
+        return JSONResponse({"status": "pending"})
+    # do not delete immediately to allow retries; the client may clear it after exchange
+    return JSONResponse({"status": "ok", **data})
 
 
 # Database management
@@ -99,8 +252,9 @@ async def create_database(payload: Dict[str, Any]):
 		raise HTTPException(status_code=400, detail="Provide database name")
 	if name in _db_registry:
 		raise HTTPException(status_code=400, detail="Database already exists")
-	_db_registry[name] = Database(name=name)
+	_db_registry[name] = _load_or_create_database(name)
 	_active_db_name = name
+	_auto_save_active_db()
 	return {"status": "ok", "active": _active_db_name}
 
 
@@ -108,8 +262,11 @@ async def create_database(payload: Dict[str, Any]):
 async def switch_database(payload: Dict[str, Any]):
 	global _active_db_name
 	name = payload.get("name")
-	if not name or name not in _db_registry:
-		raise HTTPException(status_code=400, detail="Unknown database")
+	if not name:
+		raise HTTPException(status_code=400, detail="Provide database name")
+	if name not in _db_registry:
+		# Try to load database from file
+		_db_registry[name] = _load_or_create_database(name)
 	_active_db_name = name
 	return {"status": "ok", "active": _active_db_name}
 
@@ -164,6 +321,7 @@ async def create_table(payload: Dict[str, Any]):
 		raise HTTPException(status_code=400, detail="Invalid payload")
 	try:
 		table = get_db().create_table(name, schema)
+		_auto_save_active_db()
 		return {"status": "ok", "table": table.to_json()}
 	except Exception as exc:
 		raise HTTPException(status_code=400, detail=str(exc))
@@ -177,6 +335,7 @@ async def insert_row(payload: Dict[str, Any]):
 		raise HTTPException(status_code=400, detail="Invalid payload")
 	try:
 		get_db().insert_row(table, values)
+		_auto_save_active_db()
 		return {"status": "ok"}
 	except Exception as exc:
 		raise HTTPException(status_code=400, detail=str(exc))
@@ -214,6 +373,7 @@ async def delete_table(payload: Dict[str, Any]):
 		raise HTTPException(status_code=400, detail="Provide table name")
 	try:
 		get_db().drop_table(name)
+		_auto_save_active_db()
 		return {"status": "deleted", "name": name}
 	except Exception as exc:
 		raise HTTPException(status_code=400, detail=str(exc))
@@ -247,6 +407,7 @@ async def union_tables_endpoint(payload: Dict[str, Any]):
 			name = (base[:max_base] if len(base) > max_base else base) + suffix
 		res.name = name
 		db.tables[name] = res
+		_auto_save_active_db()
 		return res.to_json()
 	except Exception as exc:
 		raise HTTPException(status_code=400, detail=str(exc))
