@@ -1,0 +1,167 @@
+@startuml class_full_system
+!theme plain
+title TDMS - Complete System Class Diagram
+
+package "Core Layer" #LightBlue {
+  class Database {
+    - name: str
+    - tables: Dict[str, Table]
+    + create_table(name, schema): Table
+    + drop_table(name): void
+    + get_table(name): Table
+    + save(path): void
+    + load(path): Database
+  }
+  
+  class Table {
+    - name: str
+    - columns: List[Column]
+    - rows: List[Row]
+    + add_row(values): Row
+    + update_row(index, values): Row
+    + get_rows(): List[Dict]
+  }
+  
+  class Column {
+    - name: str
+    - type_name: str
+  }
+  
+  class Row {
+    - values: Dict[str, Any]
+  }
+  
+  class TypeValidator {
+    + {static} validate_row(schema, values): Dict
+    + {static} normalize(value, type_name): Any
+  }
+  
+  class Operations {
+    + {static} union_tables(t1, t2): Table
+  }
+}
+
+package "Web Layer" #LightGreen {
+  class FastAPIApp {
+    - app: FastAPI
+    - templates: Jinja2Templates
+    - current_db: Database
+    + startup_event(): void
+    + shutdown_event(): void
+  }
+  
+  class WebEndpoints {
+    + index(): HTMLResponse
+    + get_database_info(): Dict
+    + create_database(name): Dict
+    + load_database(name): Dict
+    + save_database(): Dict
+    + create_table(payload): Dict
+    + drop_table(name): Dict
+    + get_tables(): List
+    + get_table_data(name): Dict
+    + insert_row(payload): Dict
+    + update_row(payload): Dict
+    + union_tables(payload): Dict
+  }
+  
+  class RequestModels {
+    + CreateDatabaseRequest
+    + CreateTableRequest
+    + InsertRowRequest
+    + UpdateRowRequest
+    + UnionTablesRequest
+  }
+}
+
+package "Desktop Layer" #LightYellow {
+  class DesktopApp {
+    - server_thread: Thread
+    - window: WebViewWindow
+    - port: int
+    + start_server(): void
+    + create_window(): void
+    + run(): void
+  }
+  
+  class DesktopAPI {
+    - db: Database
+    + handle_request(endpoint, data): Dict
+    + create_database(name): Dict
+    + create_table(name, schema): Dict
+    + insert_row(table, values): Dict
+    + union_tables(t1, t2): Dict
+    + save_database(path): Dict
+    + load_database(path): Dict
+  }
+}
+
+package "UI Components" #LightPink {
+  class WebInterface {
+    - currentDatabase: Object
+    - tables: Array
+    + loadDatabase(): void
+    + createTable(): void
+    + insertRow(): void
+    + unionTables(): void
+    + displayResults(): void
+  }
+  
+  class FormValidation {
+    + validateTableSchema(): boolean
+    + validateRowData(): boolean
+    + validateDateFormat(): boolean
+    + validateDateInterval(): boolean
+  }
+  
+  class TableRenderer {
+    + renderTable(data): HTMLElement
+    + renderSchema(columns): HTMLElement
+    + highlightErrors(errors): void
+  }
+}
+
+' Core relationships
+Database "1" *-- "0..*" Table
+Table "1" *-- "1..*" Column
+Table "1" *-- "0..*" Row
+Table ..> TypeValidator : uses
+Operations ..> Table : operates
+
+' Web layer relationships
+FastAPIApp "1" *-- "1" WebEndpoints
+WebEndpoints ..> Database : uses
+WebEndpoints ..> RequestModels : validates
+WebEndpoints ..> Operations : calls
+
+' Desktop layer relationships
+DesktopApp "1" *-- "1" DesktopAPI
+DesktopAPI ..> Database : uses
+DesktopAPI ..> Operations : calls
+
+' UI relationships
+WebInterface ..> FormValidation : uses
+WebInterface ..> TableRenderer : uses
+WebInterface ..> WebEndpoints : HTTP calls
+DesktopApp ..> WebInterface : embeds
+
+' Cross-layer relationships
+WebEndpoints --|> Database : manages
+DesktopAPI --|> Database : manages
+
+note bottom of Database
+  Shared core logic between
+  web and desktop versions
+end note
+
+note right of FastAPIApp
+  REST API implementation
+  for web version
+end note
+
+note left of DesktopApp
+  Embedded web server
+  for standalone version
+end note
+
+@enduml

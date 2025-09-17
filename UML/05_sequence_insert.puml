@@ -1,0 +1,85 @@
+@startuml sequence_insert
+!theme plain
+title TDMS - Sequence Diagram: Insert Row
+
+actor User
+participant "Web UI" as UI
+participant "FastAPI\nEndpoint" as API
+participant "Database" as DB
+participant "Table" as Table
+participant "TypeValidator" as Validator
+participant "Row" as Row
+
+User -> UI: Click "Add Row"
+activate UI
+UI -> UI: Display input form\nfor table columns
+UI -> User: Show form
+
+User -> UI: Enter row data
+UI -> UI: Collect form values
+
+UI -> API: POST /insert_row\n{table_name, values}
+activate API
+
+API -> DB: get_table(table_name)
+activate DB
+
+alt Table exists
+  DB -> Table: Return table reference
+  deactivate DB
+  
+  API -> Table: add_row(values)
+  activate Table
+  
+  Table -> Validator: validate_row(schema, values)
+  activate Validator
+  
+  loop For each column
+    Validator -> Validator: normalize(value, type_name)
+    note right
+      Type validation:
+      - integer: int conversion
+      - real: float conversion
+      - char: single character
+      - string: text
+      - date: YYYY-MM-DD format
+      - dateInvl: {start, end} dates
+    end note
+  end
+  
+  alt All values valid
+    Validator -> Table: Return normalized values
+    deactivate Validator
+    
+    Table -> Row: new Row(normalized_values)
+    activate Row
+    Row -> Row: Store values
+    Row -> Table: Return row instance
+    deactivate Row
+    
+    Table -> Table: rows.append(row)
+    Table -> API: Return success
+    deactivate Table
+    
+    API -> UI: 200 OK\n{success: true, row_data}
+    deactivate API
+    
+    UI -> UI: Update table display
+    UI -> User: Show success message
+    
+  else Validation failed
+    Validator -> Table: Raise ValidationError
+    Table -> API: Propagate error
+    API -> UI: 400 Bad Request\n{error: details}
+    UI -> User: Show validation errors
+  end
+  
+else Table not found
+  DB -> API: Raise ValueError
+  API -> UI: 404 Not Found\n{error: "Table not found"}
+  UI -> User: Show error message
+end
+
+deactivate UI
+
+@enduml

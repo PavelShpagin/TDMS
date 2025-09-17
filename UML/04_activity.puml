@@ -1,0 +1,107 @@
+@startuml activity
+!theme plain
+title TDMS - Activity Diagram: Create and Populate Table
+
+start
+
+:User opens TDMS application;
+
+:Select/Create Database;
+
+if (Database exists?) then (yes)
+  :Load existing database from JSON;
+else (no)
+  :Create new database;
+  :Enter database name;
+endif
+
+:Database ready;
+
+partition "Create Table" {
+  :Click "Create Table";
+  :Enter table name;
+  
+  :Define table schema;
+  
+  repeat
+    :Add column;
+    :Enter column name;
+    :Select column type|
+    note right
+      Available types:
+      - integer
+      - real
+      - char
+      - string
+      - date
+      - dateInvl
+    end note
+    
+    if (Column name unique?) then (yes)
+      :Add to schema;
+    else (no)
+      :Show error: "Duplicate column";
+      :Request different name;
+    endif
+    
+  repeat while (More columns?) is (yes)
+  -> no;
+  
+  :Validate complete schema;
+  
+  if (Schema valid?) then (yes)
+    :Create table in database;
+    :Show success message;
+  else (no)
+    :Show validation errors;
+    stop
+  endif
+}
+
+partition "Insert Data" {
+  :Select table for data entry;
+  
+  repeat
+    :Click "Add Row";
+    :Show input form with columns;
+    
+    fork
+      :Enter integer value;
+    fork again
+      :Enter real value;
+    fork again
+      :Enter char value;
+    fork again
+      :Enter string value;
+    fork again
+      :Enter date (YYYY-MM-DD);
+    fork again
+      :Enter dateInvl (start, end);
+    end fork
+    
+    :Validate all inputs;
+    
+    if (All values valid?) then (yes)
+      :Insert row into table;
+      :Update display;
+    else (no)
+      :Show validation errors;
+      :Highlight invalid fields;
+      :Allow correction;
+    endif
+    
+  repeat while (Add more rows?) is (yes)
+  -> no;
+}
+
+:Save database to JSON;
+
+if (Save successful?) then (yes)
+  :Show "Database saved";
+else (no)
+  :Show error message;
+endif
+
+stop
+
+@enduml

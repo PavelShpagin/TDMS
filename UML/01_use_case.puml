@@ -1,0 +1,75 @@
+@startuml use_case
+!theme plain
+title TDMS DBMS - Use Case Diagram
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "User" as user
+actor "Administrator" as admin
+
+rectangle "TDMS Database Management System" {
+  usecase "Create Database" as UC1
+  usecase "Create Table" as UC2
+  usecase "Drop Table" as UC3
+  usecase "Insert Row" as UC4
+  usecase "Edit Row" as UC5
+  usecase "View Table Data" as UC6
+  usecase "Validate Data Types" as UC7
+  usecase "Union Tables" as UC8
+  usecase "Save Database to JSON" as UC9
+  usecase "Load Database from JSON" as UC10
+  usecase "Manage Date Types" as UC11
+  usecase "Manage DateInterval Types" as UC12
+  usecase "Export Table Schema" as UC13
+  usecase "Search Rows" as UC14
+  usecase "Delete Row" as UC15
+}
+
+' User relationships
+user --> UC1
+user --> UC2
+user --> UC3
+user --> UC4
+user --> UC5
+user --> UC6
+user --> UC8
+user --> UC14
+user --> UC15
+
+' Admin relationships
+admin --> UC7
+admin --> UC9
+admin --> UC10
+admin --> UC11
+admin --> UC12
+admin --> UC13
+
+' Include relationships
+UC4 ..> UC7 : <<include>>
+UC5 ..> UC7 : <<include>>
+UC8 ..> UC7 : <<include>>
+UC2 ..> UC7 : <<include>>
+
+' Extend relationships
+UC11 <<-- UC7 : <<extend>>
+UC12 <<-- UC7 : <<extend>>
+
+note right of UC8
+  Union operation for tables
+  with compatible schemas
+  (Variant 58 specific)
+end note
+
+note right of UC11
+  Support for date type
+  Format: YYYY-MM-DD
+end note
+
+note right of UC12
+  Support for dateInvl type
+  Format: {"start": date, "end": date}
+end note
+
+@enduml

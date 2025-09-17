@@ -1,0 +1,124 @@
+@startuml deployment
+!theme plain
+title TDMS - Deployment Diagram
+
+node "Client Machine" <<device>> {
+  node "Web Browser" <<execution environment>> {
+    component "Web UI" <<HTML/CSS/JavaScript>> {
+      artifact "index.html" <<HTML>>
+      artifact "styles.css" <<CSS>>
+      artifact "app.js" <<JavaScript>>
+    }
+  }
+  
+  node "Desktop Application" <<execution environment>> {
+    component "PyWebView Container" <<Python>> {
+      artifact "TDMS-Desktop.exe" <<executable>>
+    }
+    
+    component "Embedded Web Server" <<Python>> {
+      artifact "desktop/app.py" <<Python>>
+    }
+  }
+}
+
+node "Application Server" <<device>> {
+  node "Python Runtime" <<execution environment>> {
+    component "FastAPI Application" <<Web Service>> {
+      artifact "web/main.py" <<Python>>
+      artifact "requirements.txt" <<config>>
+    }
+    
+    component "Core Business Logic" <<Library>> {
+      artifact "core/database.py" <<Python>>
+      artifact "core/table.py" <<Python>>
+      artifact "core/validator.py" <<Python>>
+      artifact "core/operations.py" <<Python>>
+    }
+    
+    component "Uvicorn Server" <<ASGI Server>> {
+      artifact "uvicorn" <<process>>
+    }
+  }
+  
+  node "Virtual Environment" <<execution environment>> {
+    artifact "venv/" <<directory>>
+    artifact "Python 3.8+" <<runtime>>
+  }
+}
+
+node "File System" <<device>> {
+  node "Database Storage" <<directory>> {
+    artifact "databases/*.json" <<JSON>>
+    artifact "desktop_databases/*.json" <<JSON>>
+  }
+  
+  node "Static Assets" <<directory>> {
+    artifact "web/static/*" <<resources>>
+    artifact "web/templates/*" <<HTML>>
+  }
+  
+  node "Test Data" <<directory>> {
+    artifact "test_*.json" <<JSON>>
+  }
+}
+
+node "Development Machine" <<device>> {
+  node "Development Tools" <<execution environment>> {
+    component "Git Repository" <<VCS>> {
+      artifact ".git/" <<repository>>
+    }
+    
+    component "Test Runner" <<pytest>> {
+      artifact "tests/*.py" <<Python>>
+      artifact "coverage.xml" <<report>>
+    }
+    
+    component "Build Tools" <<scripts>> {
+      artifact "setup_environment.bat" <<batch>>
+      artifact "build_desktop.bat" <<batch>>
+      artifact "run_server.bat" <<batch>>
+    }
+  }
+}
+
+' Communication protocols
+"Web Browser" ..> "FastAPI Application" : HTTP/HTTPS\n(port 8000)
+"PyWebView Container" ..> "Embedded Web Server" : localhost:8000
+"Embedded Web Server" ..> "Core Business Logic" : Python imports
+"FastAPI Application" ..> "Core Business Logic" : Python imports
+"Core Business Logic" ..> "Database Storage" : File I/O\n(JSON)
+"Uvicorn Server" ..> "FastAPI Application" : ASGI
+"FastAPI Application" ..> "Static Assets" : File serving
+"Test Runner" ..> "Core Business Logic" : Unit tests
+"Build Tools" ..> "Virtual Environment" : pip install
+
+note top of "Client Machine"
+  User access points:
+  - Web browser for remote access
+  - Desktop app for local use
+end note
+
+note right of "Application Server"
+  Server components:
+  - FastAPI for REST API
+  - Core logic shared between
+    web and desktop versions
+  - Uvicorn as ASGI server
+end note
+
+note bottom of "File System"
+  Persistent storage:
+  - JSON database files
+  - Static web resources
+  - Test data
+end note
+
+note left of "Development Machine"
+  Development environment:
+  - Version control (Git)
+  - Automated testing
+  - Build and deployment scripts
+end note
+
+@enduml

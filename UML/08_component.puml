@@ -1,0 +1,146 @@
+@startuml component
+!theme plain
+title TDMS - Component Diagram
+
+package "TDMS System" {
+  
+  package "Presentation Layer" {
+    component [Web UI] <<HTML/CSS/JS>> {
+      port "HTTP" as web_port
+    }
+    
+    component [Desktop UI] <<PyWebView>> {
+      port "Embedded Server" as desktop_port
+    }
+  }
+  
+  package "Application Layer" {
+    component [FastAPI Server] <<Web Service>> {
+      port "REST API" as rest_api
+      port "Templates" as templates
+    }
+    
+    component [Desktop App] <<Python Application>> {
+      port "Local API" as local_api
+    }
+    
+    component [API Endpoints] <<Controllers>> {
+      port "Request Handler" as req_handler
+    }
+  }
+  
+  package "Business Logic Layer" {
+    component [Core Module] <<Domain Logic>> {
+      port "Database Operations" as db_ops
+      port "Table Operations" as table_ops
+      port "Validation Services" as validation
+      port "Union Operations" as union_ops
+    }
+    
+    component [Database Manager] <<Entity>> {
+      port "CRUD Operations" as crud
+    }
+    
+    component [Table Manager] <<Entity>> {
+      port "Schema Management" as schema_mgmt
+      port "Row Management" as row_mgmt
+    }
+    
+    component [Type Validator] <<Service>> {
+      port "Type Checking" as type_check
+      port "Date Validation" as date_valid
+    }
+    
+    component [Operations Module] <<Service>> {
+      port "Table Union" as table_union
+    }
+  }
+  
+  package "Data Persistence Layer" {
+    component [JSON Serializer] <<Persistence>> {
+      port "Save/Load" as json_io
+    }
+    
+    database "File System" <<JSON Files>> {
+      port "File I/O" as file_io
+    }
+  }
+  
+  package "Testing Layer" {
+    component [Unit Tests] <<pytest>> {
+      port "Test Runner" as test_run
+    }
+    
+    component [Integration Tests] <<pytest>> {
+      port "API Testing" as api_test
+    }
+  }
+}
+
+' Presentation to Application connections
+[Web UI] ..> rest_api : HTTP Requests
+[Desktop UI] ..> desktop_port : Local Connection
+desktop_port --> local_api
+
+' Application to Business Logic connections
+rest_api --> req_handler
+local_api --> req_handler
+req_handler --> db_ops
+templates --> [Web UI]
+
+' Business Logic internal connections
+db_ops --> crud
+table_ops --> schema_mgmt
+table_ops --> row_mgmt
+validation --> type_check
+validation --> date_valid
+union_ops --> table_union
+
+crud --> [Database Manager]
+schema_mgmt --> [Table Manager]
+row_mgmt --> [Table Manager]
+type_check --> [Type Validator]
+date_valid --> [Type Validator]
+table_union --> [Operations Module]
+
+' Business to Persistence connections
+[Database Manager] --> json_io
+[Table Manager] --> json_io
+json_io --> file_io
+
+' Testing connections
+test_run ..> [Core Module] : Tests
+api_test ..> [API Endpoints] : Tests
+api_test ..> rest_api : HTTP Tests
+
+note top of [Core Module]
+  Central business logic
+  - Database operations
+  - Table management
+  - Type validation
+  - Union operations
+end note
+
+note bottom of [JSON Serializer]
+  Persistence mechanism
+  - Save databases as JSON
+  - Load from JSON files
+  - Schema preservation
+end note
+
+note right of [Type Validator]
+  Supported types:
+  - integer, real
+  - char, string
+  - date (YYYY-MM-DD)
+  - dateInvl (interval)
+end note
+
+note left of [Operations Module]
+  Table operations:
+  - Union (variant 58)
+  - Schema compatibility check
+  - Row merging
+end note
+
+@enduml

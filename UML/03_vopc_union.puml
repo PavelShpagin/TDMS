@@ -1,0 +1,85 @@
+@startuml vopc_union
+!theme plain
+title VOPC Diagram - Union Tables Operation
+
+' View
+class UnionView <<boundary>> {
+  - table1_select: HTMLSelectElement
+  - table2_select: HTMLSelectElement
+  - result_display: HTMLDivElement
+  --
+  + displayTables(tables: List[str])
+  + showResult(result: Table)
+  + showError(error: str)
+  + getSelectedTables() : Tuple[str, str]
+}
+
+' Controller
+class UnionController <<control>> {
+  - database: Database
+  - view: UnionView
+  --
+  + performUnion()
+  + validateSelection() : bool
+  + handleUnionRequest(t1: str, t2: str)
+  + displayUnionResult(result: Table)
+}
+
+' Persistence (Model)
+class Database <<entity>> {
+  - name: str
+  - tables: Dict[str, Table]
+  --
+  + get_table(name: str) : Table
+}
+
+class Table <<entity>> {
+  - name: str
+  - columns: List[Column]
+  - rows: List[Row]
+  --
+  + schema_signature() : Tuple
+  + get_rows() : List[Dict]
+}
+
+class Operations <<entity>> {
+  --
+  + {static} union_tables(t1: Table, t2: Table) : Table
+  - {static} _check_compatibility(t1: Table, t2: Table) : bool
+  - {static} _merge_schemas(s1: List, s2: List) : List
+  - {static} _combine_rows(t1: Table, t2: Table, schema: List) : List[Row]
+}
+
+' Object relationships
+UnionView <--> UnionController : interacts
+UnionController --> Database : queries
+UnionController --> Operations : invokes
+Database --> Table : contains
+Operations ..> Table : operates on
+
+' Sequence flow annotations
+note right of UnionController
+  1. Receives union request
+  2. Validates table selection
+  3. Retrieves tables from DB
+  4. Calls union operation
+  5. Displays result
+end note
+
+note left of Operations
+  Union Algorithm:
+  1. Check schema compatibility
+  2. Merge column definitions
+  3. Combine rows (UNION ALL)
+  4. Return new table
+end note
+
+note bottom of UnionView
+  User Interface:
+  - Select first table
+  - Select second table
+  - Click "Union" button
+  - View result table
+end note
+
+@enduml
