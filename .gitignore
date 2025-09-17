@@ -63,3 +63,4 @@ fit-idiom-462507-p7-36977d98d2cc.json
 *service-account*.json
 *serviceaccount*.json
 *.secret.json
+secrets/
