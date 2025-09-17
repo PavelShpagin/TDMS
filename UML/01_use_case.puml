@@ -1,30 +1,31 @@
 @startuml use_case
 !theme plain
-title TDMS DBMS - Use Case Diagram
+title TDMS DBMS - Use Case Diagram (Variant 58)
 
 left to right direction
 skinparam packageStyle rectangle
 skinparam actorStyle awesome
 
 actor "User" as user
-actor "Administrator" as admin
+actor "Google Drive" as gdrive
 
-rectangle "TDMS Database Management System" {
+rectangle "TDMS Core Operations" {
   usecase "Create Database" as UC1
-  usecase "Create Table" as UC2
-  usecase "Drop Table" as UC3
-  usecase "Insert Row" as UC4
-  usecase "Edit Row" as UC5
+  usecase "Switch Database" as UC2
+  usecase "Create Table" as UC3
+  usecase "Drop Table" as UC4
+  usecase "Insert Row" as UC5
   usecase "View Table Data" as UC6
-  usecase "Validate Data Types" as UC7
-  usecase "Union Tables" as UC8
-  usecase "Save Database to JSON" as UC9
-  usecase "Load Database from JSON" as UC10
-  usecase "Manage Date Types" as UC11
-  usecase "Manage DateInterval Types" as UC12
-  usecase "Export Table Schema" as UC13
-  usecase "Search Rows" as UC14
-  usecase "Delete Row" as UC15
+  usecase "Union Tables" as UC7
+  usecase "Validate Types" as UC8
+}
+
+rectangle "Data Persistence" {
+  usecase "Save to Local JSON" as UC9
+  usecase "Load from Local JSON" as UC10
+  usecase "Save to Google Drive" as UC11
+  usecase "Load from Google Drive" as UC12
+  usecase "List Drive Files" as UC13
 }
 
 ' User relationships
@@ -34,42 +35,37 @@ user --> UC3
 user --> UC4
 user --> UC5
 user --> UC6
-user --> UC8
-user --> UC14
-user --> UC15
+user --> UC7
+user --> UC9
+user --> UC10
+user --> UC11
+user --> UC12
 
-' Admin relationships
-admin --> UC7
-admin --> UC9
-admin --> UC10
-admin --> UC11
-admin --> UC12
-admin --> UC13
+' Google Drive relationships
+gdrive <-- UC11 : <<upload>>
+gdrive --> UC12 : <<download>>
+gdrive --> UC13 : <<list>>
 
 ' Include relationships
-UC4 ..> UC7 : <<include>>
-UC5 ..> UC7 : <<include>>
-UC8 ..> UC7 : <<include>>
-UC2 ..> UC7 : <<include>>
+UC5 ..> UC8 : <<include>>
+UC7 ..> UC8 : <<include>>
+UC3 ..> UC8 : <<include>>
 
 ' Extend relationships
-UC11 <<-- UC7 : <<extend>>
-UC12 <<-- UC7 : <<extend>>
+UC11 ..> UC9 : <<extend>>
+UC12 ..> UC10 : <<extend>>
 
-note right of UC8
-  Union operation for tables
-  with compatible schemas
-  (Variant 58 specific)
+note right of UC7
+  Union operation (Variant 58)
+  Combines tables with
+  compatible schemas
 end note
 
-note right of UC11
-  Support for date type
-  Format: YYYY-MM-DD
-end note
-
-note right of UC12
-  Support for dateInvl type
-  Format: {"start": date, "end": date}
+note bottom of UC8
+  Supported types:
+  - integer, real, char, string
+  - date (YYYY-MM-DD)
+  - dateInvl (intervals)
 end note
 
 @enduml

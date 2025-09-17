@@ -1,6 +1,6 @@
 @startuml component
 !theme plain
-title TDMS - Component Diagram
+title TDMS - Component Diagram with Google Drive Integration
 
 package "TDMS System" {
   
@@ -10,137 +10,88 @@ package "TDMS System" {
     }
     
     component [Desktop UI] <<PyWebView>> {
-      port "Embedded Server" as desktop_port
+      port "Embedded" as desktop_port
     }
   }
   
   package "Application Layer" {
     component [FastAPI Server] <<Web Service>> {
       port "REST API" as rest_api
-      port "Templates" as templates
-    }
-    
-    component [Desktop App] <<Python Application>> {
-      port "Local API" as local_api
     }
     
     component [API Endpoints] <<Controllers>> {
-      port "Request Handler" as req_handler
+      port "Handlers" as handlers
     }
   }
   
-  package "Business Logic Layer" {
-    component [Core Module] <<Domain Logic>> {
-      port "Database Operations" as db_ops
-      port "Table Operations" as table_ops
-      port "Validation Services" as validation
-      port "Union Operations" as union_ops
+  package "Business Logic" {
+    component [Core Module] <<Domain>> {
+      port "DB Ops" as db_ops
+      port "Validation" as validation
     }
     
-    component [Database Manager] <<Entity>> {
-      port "CRUD Operations" as crud
-    }
-    
-    component [Table Manager] <<Entity>> {
-      port "Schema Management" as schema_mgmt
-      port "Row Management" as row_mgmt
-    }
-    
-    component [Type Validator] <<Service>> {
-      port "Type Checking" as type_check
-      port "Date Validation" as date_valid
-    }
-    
-    component [Operations Module] <<Service>> {
-      port "Table Union" as table_union
-    }
+    component [Database] <<Entity>>
+    component [Table] <<Entity>>
+    component [TypeValidator] <<Service>>
+    component [Operations] <<Service>>
   }
   
-  package "Data Persistence Layer" {
-    component [JSON Serializer] <<Persistence>> {
-      port "Save/Load" as json_io
+  package "Persistence Layer" {
+    component [Local Storage] <<JSON>> {
+      port "File I/O" as local_io
     }
     
-    database "File System" <<JSON Files>> {
-      port "File I/O" as file_io
-    }
-  }
-  
-  package "Testing Layer" {
-    component [Unit Tests] <<pytest>> {
-      port "Test Runner" as test_run
+    component [Google Drive] <<Cloud>> {
+      port "Drive API" as drive_api
     }
     
-    component [Integration Tests] <<pytest>> {
-      port "API Testing" as api_test
+    component [Drive Service] <<Adapter>> {
+      port "Auth" as auth
     }
   }
 }
 
-' Presentation to Application connections
-[Web UI] ..> rest_api : HTTP Requests
-[Desktop UI] ..> desktop_port : Local Connection
-desktop_port --> local_api
+cloud "Google Cloud Platform" {
+  component [Drive API v3] <<Service>>
+  component [OAuth 2.0] <<Auth>>
+}
 
-' Application to Business Logic connections
-rest_api --> req_handler
-local_api --> req_handler
-req_handler --> db_ops
-templates --> [Web UI]
+' UI connections
+[Web UI] --> rest_api
+[Desktop UI] --> desktop_port
 
-' Business Logic internal connections
-db_ops --> crud
-table_ops --> schema_mgmt
-table_ops --> row_mgmt
-validation --> type_check
-validation --> date_valid
-union_ops --> table_union
+' API to Core
+rest_api --> handlers
+handlers --> db_ops
+handlers --> validation
 
-crud --> [Database Manager]
-schema_mgmt --> [Table Manager]
-row_mgmt --> [Table Manager]
-type_check --> [Type Validator]
-date_valid --> [Type Validator]
-table_union --> [Operations Module]
+' Core relationships
+db_ops --> [Database]
+[Database] --> [Table]
+[Table] --> [TypeValidator]
+[Operations] --> [Table]
 
-' Business to Persistence connections
-[Database Manager] --> json_io
-[Table Manager] --> json_io
-json_io --> file_io
+' Persistence connections
+[Database] --> local_io
+handlers --> drive_api
+drive_api --> auth
+auth --> [Drive Service]
 
-' Testing connections
-test_run ..> [Core Module] : Tests
-api_test ..> [API Endpoints] : Tests
-api_test ..> rest_api : HTTP Tests
+' Google Cloud connections
+[Drive Service] ..> [OAuth 2.0] : authenticate
+[Drive Service] ..> [Drive API v3] : upload/download
 
-note top of [Core Module]
-  Central business logic
-  - Database operations
-  - Table management
-  - Type validation
-  - Union operations
+note right of [Operations]
+  Union tables (Variant 58)
 end note
 
-note bottom of [JSON Serializer]
-  Persistence mechanism
-  - Save databases as JSON
-  - Load from JSON files
-  - Schema preservation
+note bottom of [TypeValidator]
+  date, dateInvl types
 end note
 
-note right of [Type Validator]
-  Supported types:
-  - integer, real
-  - char, string
-  - date (YYYY-MM-DD)
-  - dateInvl (interval)
-end note
-
-note left of [Operations Module]
-  Table operations:
-  - Union (variant 58)
-  - Schema compatibility check
-  - Row merging
+note top of [Google Drive]
+  Service Account auth
+  JSON file storage
 end note
 
 @enduml

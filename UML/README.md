@@ -21,8 +21,8 @@ View-Object-Persistence-Control diagram specifically for the Union Tables use ca
 ### 4. Activity Diagram (`04_activity.puml`)
 Workflow for creating and populating a table with data validation.
 
-### 5. Sequence Diagram - Insert Row (`05_sequence_insert.puml`)
-Detailed interaction sequence for inserting a row with type validation.
+### 5. Sequence Diagram - Google Drive Integration (`05_sequence_drive.puml`)
+Detailed interaction sequence for saving to and loading from Google Drive.
 
 ### 6. Sequence Diagram - Union Tables (`06_sequence_union.puml`)
 Interaction sequence for the union operation between two tables.

@@ -2,165 +2,80 @@
 !theme plain
 title TDMS - State Diagram: Database Lifecycle
 
-[*] --> Uninitialized
+[*] --> Initialize
 
-Uninitialized --> Creating : Create new database
-Uninitialized --> Loading : Load from JSON
-
-state Creating {
-  [*] --> EnterName
-  EnterName : Enter database name
-  EnterName --> Validating : Submit name
-  Validating : Check name validity
-  Validating --> EnterName : Invalid name
-  Validating --> InitializeEmpty : Valid name
-  InitializeEmpty : Create empty database
-  InitializeEmpty --> [*]
+state Initialize {
+  [*] --> CheckStorage
+  CheckStorage : Check for existing DBs
+  CheckStorage --> LoadExisting : Found
+  CheckStorage --> CreateNew : Not found
+  LoadExisting --> Ready
+  CreateNew --> Ready
 }
-
-Creating --> Ready : Database created
-
-state Loading {
-  [*] --> SelectFile
-  SelectFile : Choose JSON file
-  SelectFile --> ReadingFile : File selected
-  ReadingFile : Read JSON content
-  ReadingFile --> ParsingJSON : File read
-  ParsingJSON : Parse and validate
-  ParsingJSON --> SelectFile : Invalid format
-  ParsingJSON --> RestoringData : Valid JSON
-  RestoringData : Restore tables and rows
-  RestoringData --> [*]
-}
-
-Loading --> Ready : Database loaded
 
 state Ready {
   [*] --> Idle
   
-  Idle --> ManagingTables : Table operations
-  Idle --> ManagingData : Data operations
-  Idle --> Saving : Save database
+  Idle --> TableOperations : User action
+  Idle --> DataOperations : User action
+  Idle --> Persistence : Save/Load
   
-  state ManagingTables {
-    [*] --> TableList
-    TableList --> CreatingTable : Create table
-    TableList --> DeletingTable : Delete table
-    TableList --> ViewingSchema : View schema
-    
-    state CreatingTable {
-      [*] --> DefineSchema
-      DefineSchema : Add columns with types
-      DefineSchema --> ValidateSchema : Submit
-      ValidateSchema --> DefineSchema : Invalid
-      ValidateSchema --> TableCreated : Valid
-      TableCreated --> [*]
-    }
-    
-    state DeletingTable {
-      [*] --> ConfirmDelete
-      ConfirmDelete --> TableDeleted : Confirm
-      ConfirmDelete --> [*] : Cancel
-      TableDeleted --> [*]
-    }
-    
-    ViewingSchema --> TableList
+  state TableOperations {
+    [*] --> SelectOp
+    SelectOp --> CreateTable : Create
+    SelectOp --> DropTable : Drop
+    SelectOp --> UnionTables : Union
+    CreateTable --> [*]
+    DropTable --> [*]
+    UnionTables --> [*]
   }
   
-  ManagingTables --> Idle
+  state DataOperations {
+    [*] --> InsertRow
+    InsertRow --> ValidateData : Submit
+    ValidateData --> InsertRow : Invalid
+    ValidateData --> [*] : Valid
+  }
   
-  state ManagingData {
-    [*] --> SelectTable
-    SelectTable --> DataOperations : Table selected
+  state Persistence {
+    [*] --> ChooseMethod
+    ChooseMethod --> LocalSave : Local
+    ChooseMethod --> GoogleDrive : Cloud
     
-    state DataOperations {
-      [*] --> ViewData
-      ViewData --> InsertingRow : Add row
-      ViewData --> EditingRow : Edit row
-      ViewData --> UnionOperation : Union tables
-      
-      state InsertingRow {
-        [*] --> EnterValues
-        EnterValues : Input for each column
-        EnterValues --> ValidateTypes : Submit
-        ValidateTypes --> EnterValues : Invalid types
-        ValidateTypes --> RowInserted : Valid
-        RowInserted --> [*]
-      }
-      
-      state EditingRow {
-        [*] --> SelectRow
-        SelectRow --> ModifyValues : Row selected
-        ModifyValues --> ValidateChanges : Submit
-        ValidateChanges --> ModifyValues : Invalid
-        ValidateChanges --> RowUpdated : Valid
-        RowUpdated --> [*]
-      }
-      
-      state UnionOperation {
-        [*] --> SelectTables
-        SelectTables : Choose two tables
-        SelectTables --> CheckCompatibility : Tables selected
-        CheckCompatibility --> SelectTables : Incompatible
-        CheckCompatibility --> PerformUnion : Compatible
-        PerformUnion : Combine tables
-        PerformUnion --> UnionComplete : Success
-        UnionComplete --> [*]
-      }
+    state GoogleDrive {
+      [*] --> Authenticate
+      Authenticate --> Upload : Save
+      Authenticate --> Download : Load
+      Upload --> [*]
+      Download --> [*]
     }
     
-    DataOperations --> SelectTable
-    SelectTable --> [*] : Back
+    LocalSave --> [*]
   }
   
-  ManagingData --> Idle
-  
-  state Saving {
-    [*] --> ChooseLocation
-    ChooseLocation : Select save path
-    ChooseLocation --> WritingJSON : Path selected
-    WritingJSON : Serialize to JSON
-    WritingJSON --> SaveComplete : Success
-    WritingJSON --> SaveError : Failed
-    SaveError --> ChooseLocation : Retry
-    SaveError --> [*] : Cancel
-    SaveComplete --> [*]
-  }
-  
-  Saving --> Idle
+  TableOperations --> Idle
+  DataOperations --> Idle
+  Persistence --> Idle
 }
 
-Ready --> Closing : Exit application
+Ready --> Shutdown : Exit
 
-state Closing {
-  [*] --> CheckUnsaved
-  CheckUnsaved : Check for unsaved changes
-  CheckUnsaved --> PromptSave : Has changes
-  CheckUnsaved --> Cleanup : No changes
-  PromptSave --> SavingBeforeExit : Save
-  PromptSave --> Cleanup : Don't save
-  SavingBeforeExit --> Cleanup : Complete
-  Cleanup : Release resources
+state Shutdown {
+  [*] --> SaveChanges
+  SaveChanges --> Cleanup
   Cleanup --> [*]
 }
 
-Closing --> [*]
+Shutdown --> [*]
 
-note right of Ready
-  Main operational state
-  All database operations
-  happen here
+note right of GoogleDrive
+  Service Account auth
+  Drive API v3
 end note
 
-note left of Creating
-  Initial database setup
-  Name validation required
-end note
-
-note right of Loading
-  Restore from JSON
-  Schema validation
-  Type checking
+note left of DataOperations
+  Type validation:
+  date, dateInvl
 end note
 
 @enduml

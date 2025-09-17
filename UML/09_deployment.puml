@@ -1,124 +1,66 @@
 @startuml deployment
 !theme plain
-title TDMS - Deployment Diagram
+title TDMS - Deployment Diagram with Cloud Integration
 
 node "Client Machine" <<device>> {
-  node "Web Browser" <<execution environment>> {
-    component "Web UI" <<HTML/CSS/JavaScript>> {
-      artifact "index.html" <<HTML>>
-      artifact "styles.css" <<CSS>>
-      artifact "app.js" <<JavaScript>>
-    }
+  node "Web Browser" <<browser>> {
+    artifact "Web Interface" <<HTML/JS>>
   }
   
-  node "Desktop Application" <<execution environment>> {
-    component "PyWebView Container" <<Python>> {
-      artifact "TDMS-Desktop.exe" <<executable>>
-    }
-    
-    component "Embedded Web Server" <<Python>> {
-      artifact "desktop/app.py" <<Python>>
-    }
+  node "Desktop App" <<PyWebView>> {
+    artifact "TDMS-Desktop.exe" <<executable>>
   }
 }
 
-node "Application Server" <<device>> {
-  node "Python Runtime" <<execution environment>> {
-    component "FastAPI Application" <<Web Service>> {
-      artifact "web/main.py" <<Python>>
-      artifact "requirements.txt" <<config>>
+node "Application Server" <<server>> {
+  node "Python Runtime" {
+    component "FastAPI" <<service>> {
+      artifact "web/main.py"
     }
     
-    component "Core Business Logic" <<Library>> {
-      artifact "core/database.py" <<Python>>
-      artifact "core/table.py" <<Python>>
-      artifact "core/validator.py" <<Python>>
-      artifact "core/operations.py" <<Python>>
+    component "Core Logic" <<library>> {
+      artifact "database.py"
+      artifact "table.py"
+      artifact "operations.py"
+      artifact "validator.py"
     }
     
-    component "Uvicorn Server" <<ASGI Server>> {
-      artifact "uvicorn" <<process>>
-    }
-  }
-  
-  node "Virtual Environment" <<execution environment>> {
-    artifact "venv/" <<directory>>
-    artifact "Python 3.8+" <<runtime>>
+    component "Uvicorn" <<ASGI>>
   }
 }
 
-node "File System" <<device>> {
-  node "Database Storage" <<directory>> {
-    artifact "databases/*.json" <<JSON>>
-    artifact "desktop_databases/*.json" <<JSON>>
+node "Local Storage" <<filesystem>> {
+  artifact "databases/*.json" <<JSON>>
+}
+
+cloud "Google Cloud" <<cloud>> {
+  node "Google Drive" <<storage>> {
+    artifact "Database files" <<JSON>>
   }
   
-  node "Static Assets" <<directory>> {
-    artifact "web/static/*" <<resources>>
-    artifact "web/templates/*" <<HTML>>
-  }
-  
-  node "Test Data" <<directory>> {
-    artifact "test_*.json" <<JSON>>
+  node "Auth Service" <<OAuth>> {
+    artifact "Service Account" <<credentials>>
   }
 }
 
-node "Development Machine" <<device>> {
-  node "Development Tools" <<execution environment>> {
-    component "Git Repository" <<VCS>> {
-      artifact ".git/" <<repository>>
-    }
-    
-    component "Test Runner" <<pytest>> {
-      artifact "tests/*.py" <<Python>>
-      artifact "coverage.xml" <<report>>
-    }
-    
-    component "Build Tools" <<scripts>> {
-      artifact "setup_environment.bat" <<batch>>
-      artifact "build_desktop.bat" <<batch>>
-      artifact "run_server.bat" <<batch>>
-    }
-  }
-}
+' Connections
+"Web Browser" --> "FastAPI" : HTTP:8000
+"Desktop App" --> "FastAPI" : localhost:8000
+"FastAPI" --> "Core Logic" : imports
+"Core Logic" --> "Local Storage" : read/write
+"FastAPI" --> "Google Drive" : Drive API v3
+"Google Drive" --> "Auth Service" : OAuth 2.0
 
-' Communication protocols
-"Web Browser" ..> "FastAPI Application" : HTTP/HTTPS\n(port 8000)
-"PyWebView Container" ..> "Embedded Web Server" : localhost:8000
-"Embedded Web Server" ..> "Core Business Logic" : Python imports
-"FastAPI Application" ..> "Core Business Logic" : Python imports
-"Core Business Logic" ..> "Database Storage" : File I/O\n(JSON)
-"Uvicorn Server" ..> "FastAPI Application" : ASGI
-"FastAPI Application" ..> "Static Assets" : File serving
-"Test Runner" ..> "Core Business Logic" : Unit tests
-"Build Tools" ..> "Virtual Environment" : pip install
-
-note top of "Client Machine"
-  User access points:
-  - Web browser for remote access
-  - Desktop app for local use
+note right of "Google Cloud"
+  Service Account Auth:
+  - GOOGLE_SERVICE_ACCOUNT_INFO
+  - GOOGLE_SERVICE_ACCOUNT_FILE
 end note
 
-note right of "Application Server"
-  Server components:
-  - FastAPI for REST API
-  - Core logic shared between
-    web and desktop versions
-  - Uvicorn as ASGI server
-end note
-
-note bottom of "File System"
-  Persistent storage:
-  - JSON database files
-  - Static web resources
-  - Test data
-end note
-
-note left of "Development Machine"
-  Development environment:
-  - Version control (Git)
-  - Automated testing
-  - Build and deployment scripts
+note bottom of "Core Logic"
+  Variant 58:
+  - Union operation
+  - date/dateInvl types
 end note
 
 @enduml

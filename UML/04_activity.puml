@@ -1,106 +1,75 @@
 @startuml activity
 !theme plain
-title TDMS - Activity Diagram: Create and Populate Table
+title TDMS - Activity Diagram: Database Operations with Google Drive
 
 start
 
 :User opens TDMS application;
 
-:Select/Create Database;
-
-if (Database exists?) then (yes)
-  :Load existing database from JSON;
-else (no)
-  :Create new database;
-  :Enter database name;
-endif
-
-:Database ready;
-
-partition "Create Table" {
-  :Click "Create Table";
-  :Enter table name;
-  
-  :Define table schema;
-  
-  repeat
-    :Add column;
-    :Enter column name;
-    :Select column type|
-    note right
-      Available types:
-      - integer
-      - real
-      - char
-      - string
-      - date
-      - dateInvl
-    end note
-    
-    if (Column name unique?) then (yes)
-      :Add to schema;
-    else (no)
-      :Show error: "Duplicate column";
-      :Request different name;
+partition "Database Management" {
+  if (Load existing database?) then (yes)
+    if (From Google Drive?) then (yes)
+      :Authenticate with Google;
+      :List available JSON files;
+      :Select file from Drive;
+      :Download and load database;
+    else (local)
+      :Select local JSON file;
+      :Load database from file;
     endif
-    
-  repeat while (More columns?) is (yes)
-  -> no;
-  
-  :Validate complete schema;
-  
-  if (Schema valid?) then (yes)
-    :Create table in database;
-    :Show success message;
-  else (no)
-    :Show validation errors;
-    stop
+  else (create new)
+    :Enter database name;
+    :Create empty database;
   endif
 }
 
-partition "Insert Data" {
-  :Select table for data entry;
-  
-  repeat
-    :Click "Add Row";
-    :Show input form with columns;
-    
-    fork
-      :Enter integer value;
-    fork again
-      :Enter real value;
-    fork again
-      :Enter char value;
-    fork again
-      :Enter string value;
-    fork again
-      :Enter date (YYYY-MM-DD);
-    fork again
-      :Enter dateInvl (start, end);
-    end fork
-    
-    :Validate all inputs;
-    
-    if (All values valid?) then (yes)
-      :Insert row into table;
-      :Update display;
+:Database active;
+
+partition "Table Operations" {
+  switch (Select operation)
+  case (Create Table)
+    :Enter table name;
+    :Define columns with types;
+    note right
+      Types: integer, real, char,
+      string, date, dateInvl
+    end note
+    :Validate schema;
+    :Create table;
+  case (Insert Row)
+    :Select table;
+    :Enter values for each column;
+    :Validate types;
+    :Insert row;
+  case (Union Tables)
+    :Select first table;
+    :Select second table;
+    :Check schema compatibility;
+    if (Schemas compatible?) then (yes)
+      :Perform union;
+      :Create result table;
     else (no)
-      :Show validation errors;
-      :Highlight invalid fields;
-      :Allow correction;
+      :Show incompatibility error;
     endif
-    
-  repeat while (Add more rows?) is (yes)
-  -> no;
+  case (Drop Table)
+    :Select table;
+    :Confirm deletion;
+    :Remove table;
+  endswitch
 }
 
-:Save database to JSON;
-
-if (Save successful?) then (yes)
-  :Show "Database saved";
-else (no)
-  :Show error message;
-endif
+partition "Save Operations" {
+  if (Save to Google Drive?) then (yes)
+    :Serialize database to JSON;
+    :Upload to Google Drive;
+    :Get file ID;
+    :Show success with ID;
+  else (local)
+    :Serialize database to JSON;
+    :Save to local file;
+    :Show save location;
+  endif
+}
 
 stop
 
