@@ -1,71 +1,108 @@
 @startuml use_case
 !theme plain
-title TDMS DBMS - Use Case Diagram (Variant 58)
+title TDMS DBMS - Use Case Diagram (Actual Implementation)
 
 left to right direction
 skinparam packageStyle rectangle
 skinparam actorStyle awesome
 
 actor "User" as user
-actor "Google Drive" as gdrive
+actor "Google Drive API" as gdrive
 
-rectangle "TDMS Core Operations" {
+rectangle "Database Management" {
   usecase "Create Database" as UC1
   usecase "Switch Database" as UC2
-  usecase "Create Table" as UC3
-  usecase "Drop Table" as UC4
-  usecase "Insert Row" as UC5
-  usecase "View Table Data" as UC6
-  usecase "Union Tables" as UC7
-  usecase "Validate Types" as UC8
+  usecase "Rename Database" as UC3
+  usecase "Delete Database" as UC4
+  usecase "List Databases" as UC5
 }
 
-rectangle "Data Persistence" {
-  usecase "Save to Local JSON" as UC9
-  usecase "Load from Local JSON" as UC10
-  usecase "Save to Google Drive" as UC11
-  usecase "Load from Google Drive" as UC12
-  usecase "List Drive Files" as UC13
+rectangle "Table Operations" {
+  usecase "Create Table" as UC6
+  usecase "Drop Table" as UC7
+  usecase "List Tables" as UC8
+  usecase "View Table Data" as UC9
+  usecase "Insert Row" as UC10
+  usecase "Edit Row" as UC11
+  usecase "Union Tables" as UC12
 }
 
-' User relationships
+rectangle "Persistence" {
+  usecase "Save to Local JSON" as UC13
+  usecase "Load from Local JSON" as UC14
+  usecase "Import Database" as UC15
+  usecase "Save to Google Drive" as UC16
+  usecase "Load from Google Drive" as UC17
+  usecase "List Drive Files" as UC18
+}
+
+rectangle "Type Validation" {
+  usecase "Validate Integer" as UC19
+  usecase "Validate Real" as UC20
+  usecase "Validate Char" as UC21
+  usecase "Validate String" as UC22
+  usecase "Validate Date" as UC23
+  usecase "Validate DateInvl" as UC24
+}
+
+' User to Database Management
 user --> UC1
 user --> UC2
 user --> UC3
 user --> UC4
 user --> UC5
+
+' User to Table Operations
 user --> UC6
 user --> UC7
+user --> UC8
 user --> UC9
 user --> UC10
 user --> UC11
 user --> UC12
 
-' Google Drive relationships
-gdrive <-- UC11 : <<upload>>
-gdrive --> UC12 : <<download>>
-gdrive --> UC13 : <<list>>
+' User to Persistence
+user --> UC13
+user --> UC14
+user --> UC15
+user --> UC16
+user --> UC17
+user --> UC18
 
-' Include relationships
-UC5 ..> UC8 : <<include>>
-UC7 ..> UC8 : <<include>>
-UC3 ..> UC8 : <<include>>
+' Google Drive interactions
+UC16 ..> gdrive : <<uses>>
+UC17 ..> gdrive : <<uses>>
+UC18 ..> gdrive : <<uses>>
 
-' Extend relationships
-UC11 ..> UC9 : <<extend>>
-UC12 ..> UC10 : <<extend>>
+' Type validation includes
+UC10 ..> UC19 : <<include>>
+UC10 ..> UC20 : <<include>>
+UC10 ..> UC21 : <<include>>
+UC10 ..> UC22 : <<include>>
+UC10 ..> UC23 : <<include>>
+UC10 ..> UC24 : <<include>>
 
-note right of UC7
-  Union operation (Variant 58)
+UC11 ..> UC19 : <<include>>
+UC11 ..> UC20 : <<include>>
+UC11 ..> UC21 : <<include>>
+UC11 ..> UC22 : <<include>>
+UC11 ..> UC23 : <<include>>
+UC11 ..> UC24 : <<include>>
+
+note right of UC12
+  Variant 58: Union operation
   Combines tables with
   compatible schemas
 end note
 
-note bottom of UC8
-  Supported types:
-  - integer, real, char, string
-  - date (YYYY-MM-DD)
-  - dateInvl (intervals)
+note bottom of UC23
+  Variant 58: date type
+  Format: YYYY-MM-DD
+end note
+
+note bottom of UC24
+  Variant 58: dateInvl type
+  Format: {start, end}
 end note
 
 @enduml
