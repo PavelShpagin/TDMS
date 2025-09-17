@@ -56,3 +56,10 @@ node_modules/
 # Misc
 *.bak
 *.tmp
+
+# Secrets
+fit-idiom-462507-p7-36977d98d2cc.json
+*_service_account*.json
+*service-account*.json
+*serviceaccount*.json
+*.secret.json

@@ -5,7 +5,334 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Table Database</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="google-signin-client_id" content="{{ google_client_id }}" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
     <script>
+      let gapiInited = false;
+      let googleAccessToken = null;
+      let pickerLoaded = false;
+      async function initGapi() {
+        return new Promise((resolve) => {
+          const wait = () => {
+            if (window.gapi && window.google) {
+              gapi.load("client", async () => {
+                try {
+                  await gapi.client.init({});
+                } catch (e) {}
+                gapiInited = true;
+                gapi.load("picker", () => {
+                  pickerLoaded = !!(window.google && window.google.picker);
+                  resolve();
+                });
+              });
+            } else {
+              setTimeout(wait, 120);
+            }
+          };
+          wait();
+        });
+      }
+      function signInGoogle() {
+        return new Promise((resolve, reject) => {
+          if (!"{{ google_client_id }}")
+            return reject("No Google client id configured");
+          google.accounts.oauth2
+            .initTokenClient({
+              client_id: "{{ google_client_id }}",
+              scope:
+                "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly",
+              prompt: "",
+              callback: (resp) => {
+                if (resp && resp.access_token) {
+                  googleAccessToken = resp.access_token;
+                  resolve(resp.access_token);
+                } else reject("No access token");
+              },
+            })
+            .requestAccessToken();
+        });
+      }
+      async function ensureGoogleAuth() {
+        if (!googleAccessToken) await signInGoogle();
+        if (!gapiInited) await initGapi();
+      }
+      function waitUntil(cond, timeoutMs = 5000, intervalMs = 120) {
+        return new Promise((resolve) => {
+          const start = Date.now();
+          const tick = () => {
+            if (cond()) return resolve(true);
+            if (Date.now() - start >= timeoutMs) return resolve(false);
+            setTimeout(tick, intervalMs);
+          };
+          tick();
+        });
+      }
+      async function ensurePickerReady() {
+        if (!gapiInited) await initGapi();
+        const ok = await waitUntil(
+          () => window.google && window.google.picker,
+          6000,
+          120
+        );
+        pickerLoaded = !!ok;
+        return ok;
+      }
+      function buildPickerViewDocs(onPicked) {
+        if (
+          !pickerLoaded ||
+          !"{{ google_api_key }}" ||
+          !(window.google && window.google.picker)
+        )
+          return openDriveRestFallback();
+        const picker = new google.picker.PickerBuilder()
+          .setOAuthToken(googleAccessToken)
+          .setDeveloperKey("{{ google_api_key }}")
+          .setAppId("{{ google_app_id }}")
+          .addView(
+            new google.picker.DocsView()
+              .setIncludeFolders(false)
+              .setSelectFolderEnabled(false)
+              .setMimeTypes("application/json")
+          )
+          .setCallback((data) => {
+            if (
+              data.action === google.picker.Action.PICKED &&
+              data.docs &&
+              data.docs[0]
+            ) {
+              onPicked(data.docs[0]);
+            }
+          })
+          .build();
+        picker.setVisible(true);
+      }
+      function buildPickerSave(name, onPicked) {
+        if (
+          !pickerLoaded ||
+          !"{{ google_api_key }}" ||
+          !(window.google && window.google.picker)
+        )
+          return; // no-op; export already works via REST
+        const picker = new google.picker.PickerBuilder()
+          .setOAuthToken(googleAccessToken)
+          .setDeveloperKey("{{ google_api_key }}")
+          .setAppId("{{ google_app_id }}")
+          .addView(new google.picker.DocsUploadView().setParent("root"))
+          .enableFeature(google.picker.Feature.NAV_HIDDEN)
+          .enableFeature(google.picker.Feature.MULTISELECT_DISABLED)
+          .setCallback((data) => {
+            if (
+              data.action === google.picker.Action.PICKED &&
+              data.docs &&
+              data.docs[0]
+            ) {
+              onPicked(data.docs[0]);
+            }
+          })
+          .build();
+        picker.setVisible(true);
+      }
+      async function openDrivePickerAndImport() {
+        try {
+          await ensureGoogleAuth();
+          const ok = await ensurePickerReady();
+          if (!ok) {
+            // Fallback: REST-based modal list if Picker not available
+            return openDriveRestFallback();
+          }
+          buildPickerViewDocs(async (doc) => {
+            const contentResp = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${doc.id}?alt=media`,
+              {
+                headers: {
+                  Authorization: "Bearer " + googleAccessToken,
+                  Accept: "application/json",
+                },
+              }
+            );
+            if (!contentResp.ok) {
+              return toast("Error: cannot download file", "error");
+            }
+            let json;
+            try {
+              json = await contentResp.json();
+            } catch (e) {
+              return toast("Error: not a JSON file", "error");
+            }
+            const name =
+              prompt(
+                "Name for database:",
+                (doc.name || "drive_db").replace(/\.json$/, "")
+              ) || "drive_db";
+            // Confirm replace if exists
+            try {
+              const dbs = await api("/databases");
+              if (
+                dbs &&
+                Array.isArray(dbs.databases) &&
+                dbs.databases.includes(name)
+              ) {
+                const ok = confirm(`Database \"${name}\" exists. Replace it?`);
+                if (!ok) return;
+              }
+            } catch {}
+            const res = await api("/import_database", "POST", {
+              name,
+              data: json,
+            });
+            if (res && res.status === "ok") {
+              toast("Loaded from Drive");
+              await loadDatabases();
+            } else toast(`Error: ${res?.detail || "failed"}`, "error");
+          });
+        } catch (e) {
+          toast("Error: Google auth/Picker failed", "error");
+        }
+      }
+
+      async function openDriveRestFallback() {
+        try {
+          // List recent JSON files via Drive REST
+          const listResp = await fetch(
+            "https://www.googleapis.com/drive/v3/files?q=mimeType%3D%22application%2Fjson%22&fields=files(id%2Cname%2CmodifiedTime)&orderBy=modifiedTime%20desc",
+            {
+              headers: { Authorization: "Bearer " + googleAccessToken },
+            }
+          );
+          if (!listResp.ok) return toast("Error: cannot query Drive", "error");
+          const data = await listResp.json();
+          const files = data.files || [];
+          const modal = document.createElement("div");
+          modal.className =
+            "fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50";
+          modal.innerHTML = `
+            <div class="w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-4">
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold">Load from Google Drive</h3>
+                <button class="px-2 py-1 rounded bg-slate-800 text-slate-200 border border-slate-700" data-close>Close</button>
+              </div>
+              <div class="mt-3 max-h-[60vh] overflow-auto divide-y divide-slate-800">
+                ${files
+                  .map(
+                    (f) => `
+                  <div class='py-2 flex items-center justify-between'>
+                    <div class='min-w-0'>
+                      <div class='text-slate-100 truncate' title='${f.name}'>${
+                      f.name
+                    }</div>
+                      <div class='text-xs text-slate-500'>${
+                        f.modifiedTime || ""
+                      }</div>
+                    </div>
+                    <button class='px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white' data-pick='${
+                      f.id
+                    }' data-name='${f.name}'>Load</button>
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            </div>`;
+          document.body.appendChild(modal);
+          modal
+            .querySelector("[data-close]")
+            ?.addEventListener("click", () => modal.remove());
+          Array.from(modal.querySelectorAll("[data-pick]")).forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const id = btn.getAttribute("data-pick");
+              const fname = (
+                btn.getAttribute("data-name") || "drive_db"
+              ).replace(/\.json$/, "");
+              const contentResp = await fetch(
+                `https://www.googleapis.com/drive/v3/files/${id}?alt=media`,
+                {
+                  headers: {
+                    Authorization: "Bearer " + googleAccessToken,
+                    Accept: "application/json",
+                  },
+                }
+              );
+              if (!contentResp.ok)
+                return toast("Error: cannot download file", "error");
+              let json;
+              try {
+                json = await contentResp.json();
+              } catch {
+                return toast("Error: not a JSON file", "error");
+              }
+              const name = prompt("Name for database:", fname) || fname;
+              // Confirm replace if exists
+              try {
+                const dbs = await api("/databases");
+                if (
+                  dbs &&
+                  Array.isArray(dbs.databases) &&
+                  dbs.databases.includes(name)
+                ) {
+                  const ok = confirm(
+                    `Database \"${name}\" exists. Replace it?`
+                  );
+                  if (!ok) return;
+                }
+              } catch {}
+              const res = await api("/import_database", "POST", {
+                name,
+                data: json,
+              });
+              if (res && res.status === "ok") {
+                toast("Loaded from Drive");
+                modal.remove();
+                await loadDatabases();
+              } else toast(`Error: ${res?.detail || "failed"}`, "error");
+            });
+          });
+        } catch (e) {
+          toast("Error: Drive fallback failed", "error");
+        }
+      }
+      async function exportDbToDrive(name) {
+        try {
+          await ensureGoogleAuth();
+          await ensurePickerReady();
+          const tables = await api("/tables");
+          const payload = JSON.stringify({ name, tables: tables.tables });
+          const res = await fetch(
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
+            {
+          method: "POST",
+              headers: { Authorization: "Bearer " + googleAccessToken },
+              body: buildMultipart({ name: name + ".json" }, payload),
+            }
+          );
+          const json = await res.json();
+          if (json && json.id) toast("Saved to Drive: " + json.id);
+          else toast("Error: Drive upload failed", "error");
+        } catch (e) {
+          toast("Error: Google auth/upload failed", "error");
+        }
+      }
+      function buildMultipart(meta, body) {
+        const boundary = "-------314159265358979323846";
+        const delimiter = "\r\n--" + boundary + "\r\n";
+        const closeDelim = "\r\n--" + boundary + "--";
+        const contentType = "application/json";
+        const base64Data = btoa(unescape(encodeURIComponent(body)));
+        const multipartRequestBody =
+          delimiter +
+          "Content-Type: application/json\r\n\r\n" +
+          JSON.stringify(meta) +
+          delimiter +
+          "Content-Type: " +
+          contentType +
+          "\r\n" +
+          "Content-Transfer-Encoding: base64\r\n\r\n" +
+          base64Data +
+          closeDelim;
+        return new Blob([multipartRequestBody], {
+          type: "multipart/related; boundary=" + boundary,
+        });
+      }
       const TYPE_OPTIONS = [
         "integer",
         "real",
@@ -28,6 +355,213 @@
         } catch {
           return text;
         }
+      }
+      async function loadDatabases() {
+        const res = await api("/databases");
+        const list = document.getElementById("db-list");
+        list.innerHTML = "";
+        (res.databases || [])
+          .filter((n) => n !== "default")
+          .forEach((name) => {
+            const card = document.createElement("div");
+            card.className =
+              "rounded-xl border border-slate-800 bg-slate-950/80 p-4 flex items-center justify-between";
+            card.innerHTML = `<div class="min-w-0"><div class="font-semibold text-slate-100 truncate" title="${name}">${name}</div></div>
+          <div class="flex flex-wrap gap-2 items-center justify-end">
+            <button class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200" data-open="${name}">Open</button>
+            <button class="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white" data-store-drive="${name}">Store Drive</button>
+            <button class="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white" data-delete-db="${name}">Delete</button>
+          </div>`;
+            list.appendChild(card);
+          });
+        Array.from(list.querySelectorAll("[data-open]")).forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const name = btn.getAttribute("data-open");
+            // Optimistic view switch
+            const dbNameInput = document.getElementById("db-name");
+            if (dbNameInput) dbNameInput.value = name;
+            const activeNameInput = document.getElementById("active-db-name");
+            if (activeNameInput) activeNameInput.value = name;
+            enterTablesView();
+            await refresh();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            try {
+              const res = await api("/switch_database", "POST", { name });
+              if (!(res && res.status === "ok"))
+                toast(`Error: ${res?.detail || "failed"}`, "error");
+              else {
+                const ani = document.getElementById("active-db-name");
+                if (ani) ani.value = res.active || name;
+              }
+            } catch (err) {
+              toast("Error: failed to open database", "error");
+            }
+          });
+        });
+        Array.from(list.querySelectorAll("[data-store-drive]")).forEach(
+          (btn) => {
+            btn.addEventListener("click", async () => {
+              const name = btn.getAttribute("data-store-drive");
+              await exportDbToDrive(name);
+            });
+          }
+        );
+        Array.from(list.querySelectorAll("[data-delete-db]")).forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const name = btn.getAttribute("data-delete-db");
+            const res = await api("/delete_database", "POST", { name });
+            if (res && res.status === "ok") {
+              toast("Database deleted");
+              loadDatabases();
+            } else toast(`Error: ${res?.detail || "failed"}`, "error");
+          });
+        });
+      }
+
+      async function openDriveModal() {
+        const data = await api("/drive_files");
+        const files = (data && data.files) || [];
+        const modal = document.createElement("div");
+        modal.className =
+          "fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50";
+        modal.innerHTML = `
+          <div class="w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold">Load from Google Drive</h3>
+              <button class="px-2 py-1 rounded bg-slate-800 text-slate-200 border border-slate-700" data-close>Close</button>
+            </div>
+            <div class="mt-3 max-h-[60vh] overflow-auto divide-y divide-slate-800">
+              ${files
+                .map(
+                  (f) => `
+                <div class='py-2 flex items-center justify-between'>
+                  <div class='min-w-0'>
+                    <div class='text-slate-100 truncate' title='${f.name}'>${
+                    f.name
+                  }</div>
+                    <div class='text-xs text-slate-500'>${
+                      f.modifiedTime || ""
+                    }</div>
+                  </div>
+                  <button class='px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white' data-pick='${
+                    f.id
+                  }'>Load</button>
+                </div>`
+                )
+                .join("")}
+            </div>
+          </div>`;
+        document.body.appendChild(modal);
+        modal
+          .querySelector("[data-close]")
+          .addEventListener("click", () => modal.remove());
+        Array.from(modal.querySelectorAll("[data-pick]")).forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const file_id = btn.getAttribute("data-pick");
+            const name = prompt(
+              "Name for database loaded from Drive:",
+              "drive_db"
+            );
+            if (!name) return;
+            const res = await api("/load_drive", "POST", { name, file_id });
+            if (res && res.status === "ok") {
+              toast("Loaded from Drive");
+              modal.remove();
+              await loadDatabases();
+            } else toast(`Error: ${res?.detail || "failed"}`, "error");
+          });
+        });
+      }
+      function enterTablesView() {
+        document.getElementById("dbView").classList.add("hidden");
+        document.getElementById("tableView").classList.remove("hidden");
+        refresh();
+        const t = document.getElementById("pageTitle");
+        const s = document.getElementById("pageSubtitle");
+        if (t) t.textContent = "Tables";
+        if (s) {
+          s.textContent = "";
+          s.classList.add("hidden");
+        }
+        // Reflect active DB name for editing
+        api("/databases").then((d) => {
+          try {
+            document.getElementById("active-db-name").value = d.active || "";
+          } catch {}
+        });
+      }
+      function backToDatabases() {
+        document.getElementById("tableView").classList.add("hidden");
+        document.getElementById("dbView").classList.remove("hidden");
+        loadDatabases();
+        const t = document.getElementById("pageTitle");
+        const s = document.getElementById("pageSubtitle");
+        if (t) t.textContent = "Databases";
+        if (s) {
+          s.textContent = "";
+          s.classList.add("hidden");
+        }
+      }
+      async function createDbLanding() {
+        const name = document.getElementById("new-db-name").value.trim();
+        if (!name) return toast("Error: provide database name", "error");
+        const res = await api("/create_database", "POST", { name });
+        if (res && res.status === "ok") {
+          toast("Success: database created");
+          // Optimistically add to list
+          const list = document.getElementById("db-list");
+          const card = document.createElement("div");
+          card.className =
+            "rounded-xl border border-slate-800 bg-slate-950/80 p-4 flex items-center justify-between";
+          card.innerHTML = `<div class="min-w-0"><div class="font-semibold text-slate-100 truncate" title="${name}">${name}</div></div>
+            <div class="flex flex-wrap gap-2 items-center justify-end">
+              <button class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200" data-open="${name}">Open</button>
+              <button class="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white" data-store-drive="${name}">Store Drive</button>
+              <button class="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white" data-delete-db="${name}">Delete</button>
+            </div>`;
+          list.prepend(card);
+          // Wire the new buttons
+          card
+            .querySelector("[data-open]")
+            ?.addEventListener("click", async () => {
+              const dbNameInput = document.getElementById("db-name");
+              if (dbNameInput) dbNameInput.value = name;
+              const activeNameInput = document.getElementById("active-db-name");
+              if (activeNameInput) activeNameInput.value = name;
+              enterTablesView();
+              await refresh();
+              try {
+                const res2 = await api("/switch_database", "POST", { name });
+                if (!(res2 && res2.status === "ok"))
+                  toast(`Error: ${res2?.detail || "failed"}`, "error");
+                else {
+                  const ani = document.getElementById("active-db-name");
+                  if (ani) ani.value = res2.active || name;
+                }
+              } catch {
+                toast("Error: failed to open database", "error");
+              }
+            });
+          card
+            .querySelector("[data-store-drive]")
+            ?.addEventListener("click", async () => {
+              const res3 = await api("/save_drive", "POST", { name });
+              if (res3 && res3.status === "ok")
+                toast("Saved to Drive: " + res3.file_id);
+              else toast(`Error: ${res3?.detail || "failed"}`, "error");
+            });
+          card
+            .querySelector("[data-delete-db]")
+            ?.addEventListener("click", async () => {
+              const res4 = await api("/delete_database", "POST", { name });
+              if (res4 && res4.status === "ok") {
+                toast("Database deleted");
+                loadDatabases();
+              } else toast(`Error: ${res4?.detail || "failed"}`, "error");
+            });
+        } else toast(`Error: ${res?.detail || "failed"}`, "error");
       }
       function addColumnRow() {
         const container = document.getElementById("schema-rows");
@@ -384,45 +918,59 @@
         });
       }
       async function createDb() {
-        const name = document.getElementById('db-name').value.trim();
-        if (!name) return toast('Error: provide database name', 'error');
-        const res = await api('/create_database', 'POST', { name });
-        if (res && res.status === 'ok') { toast('Success: database created'); refresh(); }
-        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+        const name = document.getElementById("db-name").value.trim();
+        if (!name) return toast("Error: provide database name", "error");
+        const res = await api("/create_database", "POST", { name });
+        if (res && res.status === "ok") {
+          toast("Success: database created");
+          refresh();
+        } else toast(`Error: ${res?.detail || "failed"}`, "error");
       }
       async function switchDb() {
-        const name = document.getElementById('db-name').value.trim();
-        if (!name) return toast('Error: provide database name', 'error');
-        const res = await api('/switch_database', 'POST', { name });
-        if (res && res.status === 'ok') { toast('Success: switched'); refresh(); }
-        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+        const name = document.getElementById("db-name").value.trim();
+        if (!name) return toast("Error: provide database name", "error");
+        const res = await api("/switch_database", "POST", { name });
+        if (res && res.status === "ok") {
+          toast("Success: switched");
+          refresh();
+        } else toast(`Error: ${res?.detail || "failed"}`, "error");
       }
       async function saveLocal() {
-        const name = document.getElementById('db-name').value.trim();
-        const res = await api('/save', 'POST', { name: name || undefined });
-        if (res && res.status === 'ok') toast('Saved locally'); else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+        const name = document.getElementById("db-name").value.trim();
+        const res = await api("/save", "POST", { name: name || undefined });
+        if (res && res.status === "ok") toast("Saved locally");
+        else toast(`Error: ${res?.detail || "failed"}`, "error");
       }
       async function loadLocal() {
-        const name = document.getElementById('db-name').value.trim();
-        if (!name) return toast('Error: provide database name', 'error');
-        const res = await api('/load', 'POST', { name });
-        if (res && res.status === 'ok') { toast('Loaded locally'); refresh(); }
-        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+        const name = document.getElementById("db-name").value.trim();
+        if (!name) return toast("Error: provide database name", "error");
+        const res = await api("/load", "POST", { name });
+        if (res && res.status === "ok") {
+          toast("Loaded locally");
+          refresh();
+        } else toast(`Error: ${res?.detail || "failed"}`, "error");
       }
       async function saveDrive() {
-        const name = document.getElementById('db-name').value.trim();
-        const folder_id = document.getElementById('drive-folder').value.trim() || undefined;
-        const res = await api('/save_drive', 'POST', { name: name || undefined, folder_id });
-        if (res && res.status === 'ok') toast('Saved to Drive: ' + res.file_id);
-        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+        const name = document.getElementById("db-name").value.trim();
+        const folder_id =
+          document.getElementById("drive-folder").value.trim() || undefined;
+        const res = await api("/save_drive", "POST", {
+          name: name || undefined,
+          folder_id,
+        });
+        if (res && res.status === "ok") toast("Saved to Drive: " + res.file_id);
+        else toast(`Error: ${res?.detail || "failed"}`, "error");
       }
       async function loadDrive() {
-        const name = document.getElementById('db-name').value.trim();
-        const file_id = document.getElementById('drive-file').value.trim();
-        if (!name || !file_id) return toast('Error: provide database name and file id', 'error');
-        const res = await api('/load_drive', 'POST', { name, file_id });
-        if (res && res.status === 'ok') { toast('Loaded from Drive'); refresh(); }
-        else toast(`Error: ${res?.detail || 'failed'}`, 'error');
+        const name = document.getElementById("db-name").value.trim();
+        const file_id = document.getElementById("drive-file").value.trim();
+        if (!name || !file_id)
+          return toast("Error: provide database name and file id", "error");
+        const res = await api("/load_drive", "POST", { name, file_id });
+        if (res && res.status === "ok") {
+          toast("Loaded from Drive");
+          refresh();
+        } else toast(`Error: ${res?.detail || "failed"}`, "error");
       }
       function toast(text, type = "success") {
         const t = document.getElementById("toast");
@@ -446,8 +994,28 @@
       }
       document.addEventListener("DOMContentLoaded", () => {
         addColumnRow();
-        refresh();
+        loadDatabases();
+        document
+          .getElementById("backToDb")
+          .addEventListener("click", backToDatabases);
+        const t = document.getElementById("pageTitle");
+        const s = document.getElementById("pageSubtitle");
+        if (t) t.textContent = "Databases";
+        if (s) {
+          s.textContent = "";
+          s.classList.add("hidden");
+        }
       });
+      async function renameActiveDb() {
+        const input = document.getElementById("active-db-name");
+        const newName = (input?.value || "").trim();
+        if (!newName) return toast("Error: provide database name", "error");
+        const res = await api("/rename_database", "POST", { new: newName });
+        if (res && res.status === "ok") {
+          toast("Database renamed");
+          loadDatabases();
+        } else toast(`Error: ${res?.detail || "failed"}`, "error");
+      }
     </script>
   </head>
   <body
@@ -458,87 +1026,128 @@
       class="fixed top-4 right-4 px-4 py-2 rounded bg-emerald-600/90 backdrop-blur border border-emerald-500/40 shadow-lg transition-opacity opacity-0"
     ></div>
     <header class="max-w-7xl mx-auto px-6 py-6">
-      <h1 class="text-3xl font-bold tracking-tight">Table Database</h1>
-      <p class="text-slate-400 mt-1">Create and manage tables</p>
+      <div class="text-center">
+        <h1 id="pageTitle" class="text-3xl font-bold tracking-tight">
+          Databases
+        </h1>
+        <p id="pageSubtitle" class="text-slate-400 mt-1 hidden"></p>
+      </div>
     </header>
-    <main class="max-w-7xl mx-auto px-6 grid grid-cols-12 gap-6 pb-16">
-      <section class="col-span-12 lg:col-span-5 space-y-6">
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <h2 class="text-xl font-semibold">Databases</h2>
-          <div class="mt-3 grid grid-cols-12 gap-3 text-sm">
-            <input id="db-name" placeholder="database name" class="col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700"/>
-            <div class="col-span-7 flex gap-2">
-              <button class="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white" onclick="createDb()">Create</button>
-              <button class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700" onclick="switchDb()">Switch</button>
-              <button class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700" onclick="saveLocal()">Save</button>
-              <button class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700" onclick="loadLocal()">Load</button>
-            </div>
-            <input id="drive-folder" placeholder="Drive folder id (optional)" class="col-span-7 px-3 py-2 rounded bg-slate-800/60 border border-slate-700"/>
-            <input id="drive-file" placeholder="Drive file id (for load)" class="col-span-5 px-3 py-2 rounded bg-slate-800/60 border border-slate-700"/>
-            <div class="col-span-12 flex gap-2">
-              <button class="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white" onclick="saveDrive()">Save to Drive</button>
-              <button class="px-3 py-2 rounded bg-fuchsia-600 hover:bg-fuchsia-500 text-white" onclick="loadDrive()">Load from Drive</button>
-            </div>
-          </div>
-        </div>
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <h2 class="text-xl font-semibold">Create Table</h2>
-          <div class="mt-4 space-y-3">
+    <main class="max-w-7xl mx-auto px-6 pb-16">
+      <section id="dbView" class="grid grid-cols-12 gap-6">
+        <div
+          class="col-span-12 lg:col-span-8 lg:col-start-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-5"
+        >
+          <div class="mt-2 grid grid-cols-12 gap-3 text-sm">
             <input
-              id="tname"
-              class="w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="table name"
+              id="new-db-name"
+              placeholder="new database name"
+              class="col-span-8 col-start-3 px-3 py-2 rounded bg-slate-800/60 border border-slate-700 text-center"
             />
-            <div class="space-y-3" id="schema-rows"></div>
-            <div class="flex items-center gap-3">
+            <div class="col-span-6 col-start-4 flex gap-2">
               <button
-                class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700"
-                type="button"
-                onclick="addColumnRow()"
-              >
-                Add column
-              </button>
-              <button
-                class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
-                type="button"
-                onclick="createTable()"
+                class="w-full px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
+                onclick="createDbLanding()"
               >
                 Create
               </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-          <h2 class="text-xl font-semibold">Union</h2>
-          <div class="mt-4 grid grid-cols-12 gap-3">
-            <input
-              id="union-name"
-              placeholder="result table name (optional)"
-              class="col-span-12 px-3 py-2 rounded bg-slate-800/60 border border-slate-700 text-slate-100"
-            />
-            <select
-              id="left"
-              class="col-span-5 min-w-0 truncate px-3 py-2 rounded bg-slate-800/60 border border-slate-700"
-            ></select>
-            <select
-              id="right"
-              class="col-span-5 min-w-0 truncate px-3 py-2 rounded bg-slate-800/60 border border-slate-700"
-            ></select>
-            <div class="col-span-2">
               <button
-                class="w-full whitespace-nowrap px-4 py-2 rounded bg-fuchsia-600 hover:bg-fuchsia-500 text-white"
-                onclick="unionTables()"
+                class="w-full px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200"
+                onclick="openDrivePickerAndImport()"
               >
-                Go
+                Load Drive
               </button>
             </div>
           </div>
         </div>
+        <div
+          class="col-span-12 lg:col-span-8 lg:col-start-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-5"
+        >
+          <div id="db-list" class="mt-4 space-y-3"></div>
+        </div>
       </section>
-      <section class="col-span-12 lg:col-span-7">
-        <h2 class="text-xl font-semibold mb-3">Tables</h2>
-        <div id="tables" class="grid grid-cols-1 gap-6"></div>
+      <section id="tableView" class="hidden grid grid-cols-12 gap-6 mt-6">
+        <div class="col-span-12 flex items-center justify-start gap-3">
+          <button
+            id="backToDb"
+            class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200"
+          >
+            Back to databases
+          </button>
+        </div>
+        <section class="col-span-12 lg:col-span-5 space-y-6">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <div class="mt-4 flex items-center justify-center gap-3 text-sm">
+              <input
+                id="active-db-name"
+                class="w-full max-w-md px-3 py-2 rounded bg-slate-800/60 border border-slate-700 text-center"
+                placeholder="database name"
+              />
+              <button
+                class="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
+                onclick="renameActiveDb()"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <h2 class="text-xl font-semibold">Create Table</h2>
+            <div class="mt-4 space-y-3">
+              <input
+                id="tname"
+                class="w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="table name"
+              />
+              <div class="space-y-3" id="schema-rows"></div>
+              <div class="flex items-center gap-3">
+                <button
+                  class="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700"
+                  type="button"
+                  onclick="addColumnRow()"
+                >
+                  Add column
+                </button>
+                <button
+                  class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
+                  type="button"
+                  onclick="createTable()"
+                >
+                  Create
+                </button>
+              </div>
+    </div>
+    </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <h2 class="text-xl font-semibold">Union</h2>
+            <div class="mt-4 grid grid-cols-12 gap-3">
+              <input
+                id="union-name"
+                placeholder="result table name (optional)"
+                class="col-span-12 px-3 py-2 rounded bg-slate-800/60 border border-slate-700 text-slate-100"
+              />
+              <select
+                id="left"
+                class="col-span-5 min-w-0 truncate px-3 py-2 rounded bg-slate-800/60 border border-slate-700"
+              ></select>
+              <select
+                id="right"
+                class="col-span-5 min-w-0 truncate px-3 py-2 rounded bg-slate-800/60 border border-slate-700"
+              ></select>
+              <div class="col-span-2">
+                <button
+                  class="w-full whitespace-nowrap px-4 py-2 rounded bg-fuchsia-600 hover:bg-fuchsia-500 text-white"
+                  onclick="unionTables()"
+                >
+                  Go
+                </button>
+    </div>
+      </div>
+    </div>
+        </section>
+        <section class="col-span-12 lg:col-span-7">
+          <div id="tables" class="grid grid-cols-1 gap-6"></div>
+        </section>
       </section>
     </main>
   </body>

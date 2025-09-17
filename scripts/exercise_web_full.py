@@ -58,7 +58,8 @@ def main() -> None:
 
     # Union
     u = post("/union", {"left": "A", "right": "B"})
-    assert len(u["rows"]) == 3
+    # UNION ALL semantics: 2 + 2 = 4 rows (including duplicates)
+    assert len(u["rows"]) == 4
 
     # Delete
     assert post("/delete_table", {"name": "A"})["status"] == "deleted"
