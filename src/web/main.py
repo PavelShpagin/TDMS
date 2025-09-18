@@ -14,6 +14,7 @@ import json
 import os
 import io
 import re
+import time
 
 # Load environment from .env if present
 try:
@@ -124,21 +125,19 @@ def index(request: Request):
         (port != 8000 and port is not None)  # Not standard web port
     )
     
-    print(f"DEBUG: User-Agent: {user_agent}")
-    print(f"DEBUG: Port: {port}")
-    print(f"DEBUG: Is Desktop: {is_desktop}")
+    # Desktop detection based on port
     
     # Detect Google OAuth client id and secret (env first, then secrets/client_secret_*.json)
     if is_desktop:
         # For desktop mode, use DESKTOP_ prefixed variables first
         client_id = os.getenv("DESKTOP_GOOGLE_OAUTH_CLIENT_ID")
         client_secret = os.getenv("DESKTOP_GOOGLE_OAUTH_CLIENT_SECRET")
-        print(f"DEBUG: Desktop env vars - client_id: {client_id[:20] + '...' if client_id else 'None'}, client_secret: {'***' if client_secret else 'None'}")
+        # Desktop OAuth configuration loaded
     else:
         # For web mode, use regular variables
         client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
         client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-        print(f"DEBUG: Web env vars - client_id: {client_id[:20] + '...' if client_id else 'None'}, client_secret: {'***' if client_secret else 'None'}")
+        # Web OAuth configuration loaded
     
     if not client_id:  # Load Google config from JSON files as fallback
         try:
@@ -193,6 +192,7 @@ def index(request: Request):
         "google_client_secret": client_secret or "",  # Enable Google for both web and desktop
         "google_api_key": os.getenv("GOOGLE_API_KEY", "") if not is_desktop else "",
         "google_app_id": os.getenv("GOOGLE_PICKER_APP_ID", "") if not is_desktop else "",
+        "google_refresh_token": os.getenv("GOOGLE_REFRESH_TOKEN", "") if is_desktop else "",
         "is_desktop": is_desktop,
     }
     return templates.TemplateResponse("index.html", context)
@@ -241,7 +241,22 @@ def oauth_poll(state: str | None = None):
 # Database management
 @app.get("/databases")
 def list_databases():
-	return {"active": _active_db_name, "databases": sorted(_db_registry.keys())}
+	# Sort databases by modification time (newest first)
+	db_names = list(_db_registry.keys())
+	
+	def get_db_mtime(name):
+		try:
+			db_file_path = _get_db_file_path(name)
+			if db_file_path.exists():
+				return db_file_path.stat().st_mtime
+			else:
+				# If file doesn't exist, use current time (for new databases)
+				return time.time()
+		except:
+			return 0
+	
+	sorted_names = sorted(db_names, key=get_db_mtime, reverse=True)
+	return {"active": _active_db_name, "databases": sorted_names}
 
 
 @app.post("/create_database")
@@ -282,7 +297,20 @@ async def delete_database(payload: Dict[str, Any]):
 	# Prevent deleting the reserved default if needed
 	if name == "default" and len(_db_registry) == 1:
 		raise HTTPException(status_code=400, detail="Cannot delete default database")
+	
+	# Remove from memory registry
 	_db_registry.pop(name, None)
+	
+	# Delete the actual JSON file from disk
+	try:
+		db_file_path = _get_db_file_path(name)
+		if db_file_path.exists():
+			db_file_path.unlink()  # Delete the file
+			print(f"Deleted database file: {db_file_path}")
+	except Exception as e:
+		print(f"Warning: Could not delete database file {name}: {e}")
+		# Don't fail the request if file deletion fails
+	
 	if _active_db_name == name:
 		if _db_registry:
 			_active_db_name = sorted(_db_registry.keys())[0]
@@ -443,18 +471,49 @@ async def load_db(payload: Dict[str, Any]):
 		raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.post("/export")
+async def export_db(payload: Dict[str, Any]):
+	"""Export database to JSON format"""
+	name = payload.get("name") or _active_db_name
+	if name not in _db_registry:
+		raise HTTPException(status_code=404, detail="Database not found")
+	try:
+		db = _db_registry[name]
+		return db.to_json()
+	except Exception as exc:
+		raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.post("/import_database")
 async def import_database(payload: Dict[str, Any]):
 	global _active_db_name
 	name = payload.get("name")
 	data = payload.get("data")
-	if not name or not isinstance(data, dict):
+	if not name or not data:
 		raise HTTPException(status_code=400, detail="Provide name and data")
+	
 	try:
+		# Handle both string and dict data
+		if isinstance(data, str):
+			try:
+				data = json.loads(data)
+			except json.JSONDecodeError:
+				raise HTTPException(status_code=400, detail="Invalid JSON data format")
+		elif not isinstance(data, dict):
+			raise HTTPException(status_code=400, detail="Data must be JSON object or string")
+		
+		# Handle duplicate names by adding suffix (1), (2), etc.
+		original_name = name
+		counter = 1
+		while name in _db_registry:
+			name = f"{original_name} ({counter})"
+			counter += 1
+		
 		db = Database.from_json(data)
 		db.name = name
 		_db_registry[name] = db
 		_active_db_name = name
+		_auto_save_active_db()  # Save to disk
 		return {"status": "ok", "name": name}
 	except Exception as exc:
 		raise HTTPException(status_code=400, detail=str(exc))

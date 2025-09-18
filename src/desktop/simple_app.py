@@ -16,9 +16,9 @@ import uvicorn
 try:
     from dotenv import load_dotenv
     load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
-    print("✅ Loaded .env file for desktop app")
+    print("Loaded .env file for desktop app")
 except Exception as e:
-    print(f"⚠️ Could not load .env file: {e}")
+    print(f"Warning: Could not load .env file: {e}")
 
 # Import the web application
 from src.web.main import app

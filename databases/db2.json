@@ -1,0 +1,32 @@
+{
+  "name": "db2",
+  "tables": [
+    {
+      "name": "asdaa",
+      "columns": [
+        {
+          "name": "asd",
+          "type": "integer"
+        },
+        {
+          "name": "dd",
+          "type": "date"
+        },
+        {
+          "name": "ff",
+          "type": "dateInvl"
+        }
+      ],
+      "rows": [
+        {
+          "asd": 123123,
+          "dd": "2025-09-02",
+          "ff": {
+            "start": "2025-09-22",
+            "end": "2025-09-22"
+          }
+        }
+      ]
+    }
+  ]
+}
