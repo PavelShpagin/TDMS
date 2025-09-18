@@ -1050,7 +1050,7 @@
                                                                                   `<th class='text-left px-3 py-2 font-semibold text-slate-100 border-b border-slate-700 uppercase tracking-wider'>${c.name}</th>`
                                                                               )
                                                                               .join("")}
-                                                                            <th class='text-left px-3 py-2 font-semibold text-slate-100 border-b border-slate-700 uppercase tracking-wider'>Add row</th>
+                                                                            <th class='text-left px-3 py-2 font-semibold text-slate-100 border-b border-slate-700 uppercase tracking-wider'>Actions</th>
                                                                           </tr>
                                                                         </thead>
                                                                         <tbody>
@@ -1080,9 +1080,9 @@
                                                                                 } class='w-full px-2 py-1 rounded bg-slate-800/60 border border-slate-700'></td>`;
                                                                               })
                                                                               .join("")}
-                                                                            <td class='px-3 py-2 border-b border-slate-800'><button data-add='${
-                                                                              t.name
-                                                                            }' class='px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white'>Add</button></td>
+                                                                            <td class='px-3 py-2 border-b border-slate-800'>
+                                                                              <button data-add='${t.name}' class='px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white'>Add</button>
+                                                                            </td>
                                                                           </tr>
                                                                           ${t.rows
                                                                             .map(
@@ -1101,7 +1101,12 @@
                                                                                   return `<td class='px-3 py-2 text-slate-300 border-b border-slate-800 truncate' title='${rendered}'>${rendered}</td>`;
                                                                                 })
                                                                                 .join("")}
-                                                                              <td></td>
+                                                                              <td class='px-3 py-2 border-b border-slate-800'>
+                                                                                <div class='flex gap-2'>
+                                                                                  <button data-edit-row='${t.name}' data-row-index='${t.rows.indexOf(r)}' class='px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white'>Edit</button>
+                                                                                  <button data-delete-row='${t.name}' data-row-index='${t.rows.indexOf(r)}' class='px-2 py-1 text-xs rounded bg-red-600 hover:bg-red-500 text-white'>Delete</button>
+                                                                                </div>
+                                                                              </td>
                                                                             </tr>
                                                                           `
                                                                             )
@@ -1192,6 +1197,142 @@
                                                                       } catch (e) {
                                                                         toast("Error: insert failed", "error");
                                                                       }
+                                                                    });
+                                                                  });
+
+                                                                  // Hook up row delete buttons
+                                                                  Array.from(document.querySelectorAll("[data-delete-row]")).forEach((btn) => {
+                                                                    btn.addEventListener("click", async () => {
+                                                                      const table = btn.getAttribute("data-delete-row");
+                                                                      const rowIndex = parseInt(btn.getAttribute("data-row-index"));
+
+                                                                      if (confirm("Are you sure you want to delete this row?")) {
+                                                                        try {
+                                                                          const res = await api("/delete_row", "POST", { table, row_index: rowIndex });
+                                                                          if (res && res.status === "ok") {
+                                                                            toast("Row deleted successfully");
+                                                                            expandedTables.add(table);
+                                                                            await refresh();
+                                                                          } else {
+                                                                            toast(`Error: ${res?.detail || "delete failed"}`, "error");
+                                                                          }
+                                                                        } catch (e) {
+                                                                          toast("Error: delete failed", "error");
+                                                                        }
+                                                                      }
+                                                                    });
+                                                                  });
+
+                                                                  // Hook up row edit buttons
+                                                                  Array.from(document.querySelectorAll("[data-edit-row]")).forEach((btn) => {
+                                                                    btn.addEventListener("click", async () => {
+                                                                      const table = btn.getAttribute("data-edit-row");
+                                                                      const rowIndex = parseInt(btn.getAttribute("data-row-index"));
+                                                                      const t = tablesCache.find((x) => x.name === table);
+                                                                      if (!t || !t.rows[rowIndex]) return;
+
+                                                                      const row = t.rows[rowIndex];
+                                                                      const values = {};
+
+                                                                      // Create edit form
+                                                                      const editForm = document.createElement("div");
+                                                                      editForm.className = "fixed inset-0 bg-black/50 flex items-center justify-center z-50";
+                                                                      editForm.innerHTML = `
+                                                                        <div class="bg-slate-900 p-6 rounded-lg border border-slate-700 max-w-md w-full mx-4">
+                                                                          <h3 class="text-lg font-semibold mb-4">Edit Row</h3>
+                                                                          <div class="space-y-3">
+                                                                            ${t.columns.map((c) => {
+                                                                              const currentValue = row[c.name] || "";
+                                                                              let displayValue = "";
+                                                                              let inputType = "text";
+                                                                              let placeholder = "";
+
+                                                                              if (c.type === "date") {
+                                                                                inputType = "date";
+                                                                                displayValue = currentValue || "";
+                                                                                placeholder = "YYYY-MM-DD";
+                                                                              } else if (c.type === "dateInvl") {
+                                                                                inputType = "text";
+                                                                                if (typeof currentValue === "object" && currentValue.start && currentValue.end) {
+                                                                                  displayValue = `${currentValue.start} → ${currentValue.end}`;
+                                                                                } else {
+                                                                                  displayValue = currentValue || "";
+                                                                                }
+                                                                                placeholder = "YYYY-MM-DD → YYYY-MM-DD";
+                                                                              } else {
+                                                                                displayValue = currentValue || "";
+                                                                                placeholder = `Enter ${c.name}`;
+                                                                              }
+
+                                                                              return `
+                                                                                <div>
+                                                                                  <label class="block text-sm font-medium mb-1">${c.name} (${c.type})</label>
+                                                                                  <input type="${inputType}" data-column="${c.name}" data-type="${c.type}" value="${displayValue}"
+                                                                                    placeholder="${placeholder}"
+                                                                                    class="w-full px-3 py-2 rounded bg-slate-800/60 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                                                </div>
+                                                                              `;
+                                                                            }).join("")}
+                                                                          </div>
+                                                                          <div class="flex gap-3 mt-6">
+                                                                            <button class="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white" onclick="saveRowEdit()">Save</button>
+                                                                            <button class="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500 text-white" onclick="cancelRowEdit()">Cancel</button>
+                                                                          </div>
+                                                                        </div>
+                                                                      `;
+
+                                                                      document.body.appendChild(editForm);
+
+                                                                      // Save function
+                                                                      window.saveRowEdit = async () => {
+                                                                        const inputs = editForm.querySelectorAll("input[data-column]");
+                                                                        const newValues = {};
+
+                                                                        inputs.forEach((input) => {
+                                                                          const columnName = input.getAttribute("data-column");
+                                                                          const columnType = input.getAttribute("data-type");
+                                                                          let value = input.value.trim();
+
+                                                                          if (columnType === "dateInvl") {
+                                                                            if (value.includes("→")) {
+                                                                              const [start, end] = value.split("→").map(s => s.trim());
+                                                                              newValues[columnName] = { start, end };
+                                                                            } else if (value) {
+                                                                              // Handle single date input for dateInvl
+                                                                              newValues[columnName] = { start: value, end: value };
+                                                                            } else {
+                                                                              newValues[columnName] = "";
+                                                                            }
+                                                                          } else if (columnType === "date") {
+                                                                            newValues[columnName] = value; // Date input already in YYYY-MM-DD format
+                                                                          } else {
+                                                                            newValues[columnName] = value;
+                                                                          }
+                                                                        });
+
+                                                                        try {
+                                                                          const res = await api("/update_row", "POST", {
+                                                                            table,
+                                                                            row_index: rowIndex,
+                                                                            values: newValues
+                                                                          });
+                                                                          if (res && res.status === "ok") {
+                                                                            toast("Row updated successfully");
+                                                                            expandedTables.add(table);
+                                                                            await refresh();
+                                                                            editForm.remove();
+                                                                          } else {
+                                                                            toast(`Error: ${res?.detail || "update failed"}`, "error");
+                                                                          }
+                                                                        } catch (e) {
+                                                                          toast("Error: update failed", "error");
+                                                                        }
+                                                                      };
+
+                                                                      // Cancel function
+                                                                      window.cancelRowEdit = () => {
+                                                                        editForm.remove();
+                                                                      };
                                                                     });
                                                                   });
                                                                 }

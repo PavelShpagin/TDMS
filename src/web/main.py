@@ -369,6 +369,45 @@ async def insert_row(payload: Dict[str, Any]):
 		raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.post("/delete_row")
+async def delete_row(payload: Dict[str, Any]):
+	table = payload.get("table")
+	row_index = payload.get("row_index")
+	if not table or row_index is None:
+		raise HTTPException(status_code=400, detail="Provide table and row_index")
+	try:
+		table_obj = get_db().tables[table]
+		if row_index < 0 or row_index >= len(table_obj.rows):
+			raise HTTPException(status_code=400, detail="Invalid row index")
+		
+		# Remove the row at the specified index
+		table_obj.rows.pop(row_index)
+		_auto_save_active_db()
+		return {"status": "ok"}
+	except Exception as exc:
+		raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/update_row")
+async def update_row(payload: Dict[str, Any]):
+	table = payload.get("table")
+	row_index = payload.get("row_index")
+	values = payload.get("values")
+	if not table or row_index is None or not values:
+		raise HTTPException(status_code=400, detail="Provide table, row_index, and values")
+	try:
+		table_obj = get_db().tables[table]
+		if row_index < 0 or row_index >= len(table_obj.rows):
+			raise HTTPException(status_code=400, detail="Invalid row index")
+		
+		# Update the row at the specified index
+		table_obj.rows[row_index] = values
+		_auto_save_active_db()
+		return {"status": "ok"}
+	except Exception as exc:
+		raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.get("/tables")
 def list_tables():
 	db = get_db()
