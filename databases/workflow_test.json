@@ -1,8 +1,8 @@
 {
-  "name": "default",
+  "name": "workflow_test",
   "tables": [
     {
-      "name": "desktop_test_table",
+      "name": "employees",
       "columns": [
         {
           "name": "id",
@@ -10,109 +10,143 @@
         },
         {
           "name": "name",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice"
+        },
+        {
+          "id": 2,
+          "name": "Bob"
+        }
+      ]
+    },
+    {
+      "name": "contractors",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 3,
+          "name": "Carol"
+        },
+        {
+          "id": 4,
+          "name": "Dave"
+        }
+      ]
+    },
+    {
+      "name": "all_people",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice"
+        },
+        {
+          "id": 2,
+          "name": "Bob"
+        },
+        {
+          "id": 3,
+          "name": "Carol"
+        },
+        {
+          "id": 4,
+          "name": "Dave"
+        }
+      ]
+    },
+    {
+      "name": "table_0",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "field_0",
           "type": "string"
         }
       ],
       "rows": []
     },
     {
-      "name": "insert_test_table",
+      "name": "table_1",
       "columns": [
         {
           "name": "id",
           "type": "integer"
         },
         {
-          "name": "value",
+          "name": "field_1",
           "type": "string"
         }
       ],
-      "rows": [
-        {
-          "id": 1,
-          "value": "test"
-        }
-      ]
+      "rows": []
     },
     {
-      "name": "union_table1",
+      "name": "table_2",
       "columns": [
         {
           "name": "id",
           "type": "integer"
         },
         {
-          "name": "name",
+          "name": "field_2",
           "type": "string"
         }
       ],
-      "rows": [
-        {
-          "id": 1,
-          "name": "Alice"
-        }
-      ]
+      "rows": []
     },
     {
-      "name": "union_table2",
+      "name": "table_3",
       "columns": [
         {
           "name": "id",
           "type": "integer"
         },
         {
-          "name": "name",
+          "name": "field_3",
           "type": "string"
         }
       ],
-      "rows": [
-        {
-          "id": 2,
-          "name": "Bob"
-        }
-      ]
+      "rows": []
     },
     {
-      "name": "union_result",
+      "name": "table_4",
       "columns": [
         {
           "name": "id",
           "type": "integer"
         },
         {
-          "name": "name",
+          "name": "field_4",
           "type": "string"
         }
       ],
-      "rows": [
-        {
-          "id": 1,
-          "name": "Alice"
-        },
-        {
-          "id": 2,
-          "name": "Bob"
-        }
-      ]
-    },
-    {
-      "name": "persist_test",
-      "columns": [
-        {
-          "name": "id",
-          "type": "integer"
-        },
-        {
-          "name": "data",
-          "type": "string"
-        }
-      ],
-      "rows": [
-        {
-          "id": 1,
-          "data": "test_data"
-        }
-      ]
+      "rows": []
     }
   ]
 }

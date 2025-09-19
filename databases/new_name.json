@@ -1,0 +1,242 @@
+{
+  "name": "new_name",
+  "tables": [
+    {
+      "name": "test_table",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Test"
+        }
+      ]
+    },
+    {
+      "name": "users_59f8eeea",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice",
+          "email": "alice@example.com"
+        },
+        {
+          "id": 2,
+          "name": "Bob",
+          "email": "bob@example.com"
+        },
+        {
+          "id": 3,
+          "name": "Carol",
+          "email": "carol@example.com"
+        },
+        {
+          "id": 4,
+          "name": "Dave",
+          "email": "dave@example.com"
+        }
+      ]
+    },
+    {
+      "name": "users_b1a4bd0a",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice",
+          "email": "alice@example.com"
+        },
+        {
+          "id": 2,
+          "name": "Bob",
+          "email": "bob@example.com"
+        },
+        {
+          "id": 3,
+          "name": "Carol",
+          "email": "carol@example.com"
+        }
+      ]
+    },
+    {
+      "name": "users_3c90c1f0",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice",
+          "email": "alice@example.com"
+        },
+        {
+          "id": 2,
+          "name": "Bob",
+          "email": "bob@example.com"
+        },
+        {
+          "id": 3,
+          "name": "Carol",
+          "email": "carol@example.com"
+        }
+      ]
+    },
+    {
+      "name": "table1",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice"
+        },
+        {
+          "id": 2,
+          "name": "Bob"
+        }
+      ]
+    },
+    {
+      "name": "table2",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 3,
+          "name": "Carol"
+        },
+        {
+          "id": 4,
+          "name": "Dave"
+        }
+      ]
+    },
+    {
+      "name": "union_result",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice"
+        },
+        {
+          "id": 2,
+          "name": "Bob"
+        },
+        {
+          "id": 3,
+          "name": "Carol"
+        },
+        {
+          "id": 4,
+          "name": "Dave"
+        }
+      ]
+    },
+    {
+      "name": "users_4f152da9",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "name": "Alice",
+          "email": "alice@example.com"
+        },
+        {
+          "id": 2,
+          "name": "Bob",
+          "email": "bob@example.com"
+        },
+        {
+          "id": 3,
+          "name": "Carol",
+          "email": "carol@example.com"
+        }
+      ]
+    }
+  ]
+}
