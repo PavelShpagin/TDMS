@@ -1,25 +1,104 @@
-flowchart LR
-    subgraph Core
-        A[Validator]
-        B[Table]
-        C[Database]
-        D[Operations]
+flowchart TB
+    subgraph External [External Services]
+        GoogleDrive[Google Drive API]
+        GoogleAuth[Google OAuth 2.0]
+        Browser[Web Browser]
     end
-    subgraph Desktop
-        E[PyWebview UI]
+    
+    subgraph TDMS [TDMS System Architecture]
+        subgraph UI_Layer [Presentation Layer]
+            subgraph Desktop_UI [Desktop Interface]
+                PyWebView[PyWebView Container]
+                DesktopAPI[Desktop API Bridge]
+                JsAPI[JavaScript API Bridge]
+            end
+            
+            subgraph Web_UI [Web Interface]
+                Templates[Jinja2 Templates]
+                StaticFiles[Static Assets CSS/JS]
+                WebForms[HTML Forms]
+            end
+        end
+        
+        subgraph Service_Layer [Service Layer]
+            FastAPI[FastAPI Application]
+            RESTEndpoints[REST API Endpoints]
+            AuthMiddleware[Authentication Middleware]
+            ErrorHandler[Error Handling]
+        end
+        
+        subgraph Business_Layer [Business Logic Layer]
+            subgraph Core [Core Components - Shared]
+                Database[Database Manager]
+                Table[Table Operations]
+                Row[Row Management]
+                Column[Column Definitions]
+                Validator[Type Validator]
+                Operations[Union Operations]
+            end
+            
+            subgraph Integration [Integration Services]
+                DriveService[Google Drive Service]
+                OAuthService[OAuth Service]
+                FileManager[File Management]
+            end
+        end
+        
+        subgraph Data_Layer [Data Persistence Layer]
+            JSONFiles[JSON Database Files]
+            LocalStorage[Local File System]
+            ConfigFiles[Configuration Files .env]
+        end
     end
-    subgraph Web
-        F[FastAPI]
-        G[Jinja2 Templates]
-    end
-    subgraph Persistence
-        H[JSON Files]
-    end
-    A --> B
-    B --> C
-    D --> B
-    C --> H
-    F --> C
-    E --> C
-    G --> F
-
+    
+    %% External Connections
+    Browser --> Web_UI
+    PyWebView --> Desktop_UI
+    GoogleAuth --> OAuthService
+    GoogleDrive --> DriveService
+    
+    %% UI Layer Connections
+    Desktop_UI --> FastAPI
+    Web_UI --> FastAPI
+    JsAPI --> PyWebView
+    
+    %% Service Layer Connections
+    FastAPI --> RESTEndpoints
+    RESTEndpoints --> Core
+    RESTEndpoints --> Integration
+    AuthMiddleware --> OAuthService
+    ErrorHandler --> FastAPI
+    
+    %% Business Layer Connections
+    Database --> Table
+    Table --> Row
+    Table --> Column
+    Table --> Validator
+    Operations --> Table
+    DriveService --> GoogleDrive
+    OAuthService --> GoogleAuth
+    FileManager --> LocalStorage
+    
+    %% Data Layer Connections
+    Database --> JSONFiles
+    JSONFiles --> LocalStorage
+    OAuthService --> ConfigFiles
+    ConfigFiles --> LocalStorage
+    
+    %% Cross-layer Dependencies
+    DesktopAPI --> Core
+    Templates --> RESTEndpoints
+    PyWebView --> FileManager
+    
+    %% Component Descriptions
+    classDef coreComponent fill:#e1f5fe
+    classDef uiComponent fill:#f3e5f5
+    classDef serviceComponent fill:#e8f5e8
+    classDef dataComponent fill:#fff3e0
+    classDef externalComponent fill:#ffebee
+    
+    class Database,Table,Row,Column,Validator,Operations coreComponent
+    class PyWebView,Templates,WebForms,StaticFiles uiComponent
+    class FastAPI,RESTEndpoints,AuthMiddleware,ErrorHandler serviceComponent
+    class JSONFiles,LocalStorage,ConfigFiles dataComponent
+    class GoogleDrive,GoogleAuth,Browser externalComponent

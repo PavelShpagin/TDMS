@@ -624,11 +624,12 @@
                                                                 ];
                                                                 let tablesCache = [];
                                                                 const expandedTables = new Set();
-                                                                async function api(path, method = "GET", body) {
+                                                                async function api(path, method = "GET", body, signal = null) {
                                                                   const res = await fetch(path, {
                                                                     method,
                                                                     headers: { "Content-Type": "application/json" },
                                                                     body: body ? JSON.stringify(body) : undefined,
+                                                                    signal: signal
                                                                   });
                                                                   const text = await res.text();
                                                                   try {
@@ -660,24 +661,43 @@
                                                                       e.preventDefault();
                                                                       e.stopPropagation();
                                                                       const name = btn.getAttribute("data-open");
-                                                                      // Optimistic view switch
-                                                                      const dbNameInput = document.getElementById("db-name");
-                                                                      if (dbNameInput) dbNameInput.value = name;
-                                                                      const activeNameInput = document.getElementById("active-db-name");
-                                                                      if (activeNameInput) activeNameInput.value = name;
-                                                                      enterTablesView();
-                                                                      await refresh();
-                                                                      window.scrollTo({ top: 0, behavior: "smooth" });
+
+                                                                      // Update current database state immediately
+                                                                      currentDatabaseName = name;
+
+                                                                      // Show loading state
+                                                                      btn.disabled = true;
+                                                                      btn.textContent = "Loading...";
+
                                                                       try {
+                                                                        // First switch the database on the server
                                                                         const res = await api("/switch_database", "POST", { name });
-                                                                        if (!(res && res.status === "ok"))
+                                                                        if (!(res && res.status === "ok")) {
                                                                           toast(`Error: ${res?.detail || "failed"}`, "error");
-                                                                        else {
-                                                                          const ani = document.getElementById("active-db-name");
-                                                                          if (ani) ani.value = res.active || name;
+                                                                          return;
                                                                         }
+
+                                                                        // Only update UI after successful database switch
+                                                                        const dbNameInput = document.getElementById("db-name");
+                                                                        if (dbNameInput) dbNameInput.value = name;
+                                                                        const activeNameInput = document.getElementById("active-db-name");
+                                                                        if (activeNameInput) activeNameInput.value = res.active || name;
+
+                                                                        // Switch to tables view
+                                                                        enterTablesView();
+
+                                                                        // Now refresh with the correct database context
+                                                                        await refresh(name);
+
+                                                                        window.scrollTo({ top: 0, behavior: "smooth" });
+
                                                                       } catch (err) {
                                                                         toast("Error: failed to open database", "error");
+                                                                        currentDatabaseName = null; // Reset on error
+                                                                      } finally {
+                                                                        // Restore button state
+                                                                        btn.disabled = false;
+                                                                        btn.textContent = "Open";
                                                                       }
                                                                     });
                                                                   });
@@ -812,7 +832,7 @@
                                                                         const activeNameInput = document.getElementById("active-db-name");
                                                                         if (activeNameInput) activeNameInput.value = name;
                                                                         enterTablesView();
-                                                                        await refresh();
+                                                                        await refresh(currentDatabaseName);
                                                                         try {
                                                                           const res2 = await api("/switch_database", "POST", { name });
                                                                           if (!(res2 && res2.status === "ok"))
@@ -882,7 +902,7 @@
                                                                   try {
                                                                     const res = await api("/create_table", "POST", { name, schema });
                                                                     if (res && res.status === "ok") {
-                                                                      await refresh();
+                                                                      await refresh(currentDatabaseName);
                                                                       toast("Success: table created");
                                                                     } else {
                                                                       const msg =
@@ -955,7 +975,7 @@
                                                                     const res = await api("/insert_row", "POST", { table, values });
                                                                     if (res && res.status === "ok") {
                                                                       toast("Success: row added", "success");
-                                                                      await refresh();
+                                                                      await refresh(currentDatabaseName);
                                                                     } else {
                                                                       toast(`Error: ${res?.detail || "insert failed"}`, "error");
                                                                     }
@@ -975,7 +995,7 @@
                                                                     });
                                                                     if (res && res.name) {
                                                                       toast("Union created: " + res.name);
-                                                                      await refresh();
+                                                                      await refresh(currentDatabaseName);
                                                                     } else {
                                                                       toast(`Error: ${res?.detail || "union failed"}`, "error");
                                                                     }
@@ -983,29 +1003,57 @@
                                                                     toast("Error: union failed", "error");
                                                                   }
                                                                 }
-                                                                async function refresh() {
-                                                                  const list = await api("/tables");
-                                                                  const sel = document.getElementById("insert-table");
-                                                                  const lsel = document.getElementById("left");
-                                                                  const rsel = document.getElementById("right");
-                                                                  [sel, lsel, rsel].forEach((s) => {
-                                                                    if (s) s.innerHTML = "";
-                                                                  });
-                                                                  tablesCache = list.tables || [];
-                                                                  tablesCache.forEach((t) => {
-                                                                    if (sel) {
-                                                                      const o1 = new Option(t.name, t.name);
-                                                                      sel.add(o1);
+                                                                // State management for preventing race conditions
+                                                                let currentRefreshController = null;
+                                                                let currentDatabaseName = null;
+
+                                                                async function refresh(expectedDatabase = null) {
+                                                                  // Cancel any ongoing refresh
+                                                                  if (currentRefreshController) {
+                                                                    currentRefreshController.abort();
+                                                                  }
+
+                                                                  // Create new abort controller for this refresh
+                                                                  currentRefreshController = new AbortController();
+                                                                  const signal = currentRefreshController.signal;
+
+                                                                  try {
+                                                                    // Check if we're still expecting this database
+                                                                    if (expectedDatabase && currentDatabaseName !== expectedDatabase) {
+                                                                      return; // Stale request, ignore
                                                                     }
-                                                                    const o2 = new Option(t.name, t.name);
-                                                                    lsel.add(o2);
-                                                                    const o3 = new Option(t.name, t.name);
-                                                                    rsel.add(o3);
-                                                                  });
-                                                                  if (sel) buildInsertForm();
-                                                                  const grid = document.getElementById("tables");
-                                                                  grid.innerHTML = "";
-                                                                  list.tables.forEach((t) => {
+
+                                                                    const list = await api("/tables", "GET", null, signal);
+
+                                                                    // Double-check we're still on the right database
+                                                                    if (expectedDatabase && currentDatabaseName !== expectedDatabase) {
+                                                                      return; // Database changed while we were fetching
+                                                                    }
+
+                                                                    if (signal.aborted) return; // Request was cancelled
+
+                                                                    const sel = document.getElementById("insert-table");
+                                                                    const lsel = document.getElementById("left");
+                                                                    const rsel = document.getElementById("right");
+                                                                    [sel, lsel, rsel].forEach((s) => {
+                                                                      if (s) s.innerHTML = "";
+                                                                    });
+                                                                    tablesCache = list.tables || [];
+                                                                    tablesCache.forEach((t) => {
+                                                                      if (sel) {
+                                                                        const o1 = new Option(t.name, t.name);
+                                                                        sel.add(o1);
+                                                                      }
+                                                                      const o2 = new Option(t.name, t.name);
+                                                                      lsel.add(o2);
+                                                                      const o3 = new Option(t.name, t.name);
+                                                                      rsel.add(o3);
+                                                                    });
+                                                                    if (sel) buildInsertForm();
+                                                                    const grid = document.getElementById("tables");
+                                                                    grid.innerHTML = "";
+
+                                                                    list.tables.forEach((t) => {
                                                                     const card = document.createElement("div");
                                                                     card.className =
                                                                       "rounded-xl border border-slate-800 bg-slate-950/80 p-4 shadow-xl hover:shadow-2xl transition";
@@ -1130,7 +1178,7 @@
                                                                         toast(`Success: deleted ${name}`);
                                                                       else toast(`Error: ${res?.detail || "delete failed"}`, "error");
                                                                       expandedTables.delete(name);
-                                                                      await refresh();
+                                                                      await refresh(currentDatabaseName);
                                                                     });
                                                                   });
                                                                   // Hook up per-table view: expand/collapse detail inside the same card
@@ -1190,7 +1238,7 @@
                                                                         if (res && res.status === "ok") {
                                                                           toast("Success: row added");
                                                                           expandedTables.add(table);
-                                                                          await refresh();
+                                                                          await refresh(currentDatabaseName);
                                                                         } else {
                                                                           toast(`Error: ${res?.detail || "insert failed"}`, "error");
                                                                         }
@@ -1212,7 +1260,7 @@
                                                                           if (res && res.status === "ok") {
                                                                             toast("Row deleted successfully");
                                                                             expandedTables.add(table);
-                                                                            await refresh();
+                                                                            await refresh(currentDatabaseName);
                                                                           } else {
                                                                             toast(`Error: ${res?.detail || "delete failed"}`, "error");
                                                                           }
@@ -1319,7 +1367,7 @@
                                                                           if (res && res.status === "ok") {
                                                                             toast("Row updated successfully");
                                                                             expandedTables.add(table);
-                                                                            await refresh();
+                                                                            await refresh(currentDatabaseName);
                                                                             editForm.remove();
                                                                           } else {
                                                                             toast(`Error: ${res?.detail || "update failed"}`, "error");
@@ -1335,6 +1383,17 @@
                                                                       };
                                                                     });
                                                                   });
+
+                                                                  } catch (error) {
+                                                                    if (error.name === 'AbortError') {
+                                                                      console.log('Refresh cancelled');
+                                                                      return;
+                                                                    }
+                                                                    console.error('Refresh error:', error);
+                                                                    toast('Error loading tables', 'error');
+                                                                  } finally {
+                                                                    currentRefreshController = null;
+                                                                  }
                                                                 }
                                                                 async function createDb() {
                                                                   const name = document.getElementById("db-name").value.trim();
@@ -1342,7 +1401,7 @@
                                                                   const res = await api("/create_database", "POST", { name });
                                                                   if (res && res.status === "ok") {
                                                                     toast("Success: database created");
-                                                                    refresh();
+                                                                    refresh(currentDatabaseName);
                                                                   } else toast(`Error: ${res?.detail || "failed"}`, "error");
                                                                 }
                                                                 async function switchDb() {
@@ -1350,8 +1409,9 @@
                                                                   if (!name) return toast("Error: provide database name", "error");
                                                                   const res = await api("/switch_database", "POST", { name });
                                                                   if (res && res.status === "ok") {
+                                                                    currentDatabaseName = name;
                                                                     toast("Success: switched");
-                                                                    refresh();
+                                                                    refresh(currentDatabaseName);
                                                                   } else toast(`Error: ${res?.detail || "failed"}`, "error");
                                                                 }
                                                                 async function saveLocal() {
@@ -1365,8 +1425,9 @@
                                                                   if (!name) return toast("Error: provide database name", "error");
                                                                   const res = await api("/load", "POST", { name });
                                                                   if (res && res.status === "ok") {
+                                                                    currentDatabaseName = name;
                                                                     toast("Loaded locally");
-                                                                    refresh();
+                                                                    refresh(currentDatabaseName);
                                                                   } else toast(`Error: ${res?.detail || "failed"}`, "error");
                                                                 }
                                                                 async function saveDrive() {
@@ -1412,6 +1473,16 @@
                                                                   setTimeout(() => t.classList.add("opacity-0"), 2500);
                                                                 }
                                                                 document.addEventListener("DOMContentLoaded", async () => {
+                                                                  // Initialize current database state
+                                                                  try {
+                                                                    const res = await api("/databases");
+                                                                    if (res && res.active) {
+                                                                      currentDatabaseName = res.active;
+                                                                    }
+                                                                  } catch (e) {
+                                                                    console.warn('Could not get current database:', e);
+                                                                  }
+
                                                                   addColumnRow();
                                                                   loadDatabases();
                                                                   document
@@ -1460,7 +1531,7 @@
                                                                               // Unified Load Drive function - auto-authorize + standard Google Drive picker for both desktop and web
                                                                               window.openDrivePickerAndImport = async function() {
                                                                                 try {
-                                                                                  const isDesktop = {{ is_desktop|lower }};
+                                                                                  const isDesktop = {% if is_desktop %}true{% else %}false{% endif %};
                                                                                   const clientId = "{{ google_client_id or '' }}";
                                                                                   const clientSecret = "{{ google_client_secret or '' }}";
 
@@ -1472,13 +1543,13 @@
                                                                                   // Check for saved refresh token first
                                                                                   let refreshToken = localStorage.getItem('google_refresh_token');
                                                                                   {% if is_desktop %}
-                                                                                  const savedRefreshToken = "{{ google_refresh_token or '' }}";
-                                                                                  if (savedRefreshToken) refreshToken = savedRefreshToken;
+                                                                                  if ("{{ google_refresh_token or '' }}") refreshToken = "{{ google_refresh_token or '' }}";
                                                                                   {% endif %}
 
                                                                                   // Try to refresh existing token
-                                                                                  if (refreshToken) {
+                                                                                  if (refreshToken && clientSecret) {
                                                                                     try {
+                                                                                      console.log('Attempting to refresh token...');
                                                                                       const refreshResponse = await fetch("https://oauth2.googleapis.com/token", {
                                                                                         method: "POST",
                                                                                         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -1493,14 +1564,21 @@
                                                                                       if (refreshResponse.ok) {
                                                                                         const tokenData = await refreshResponse.json();
                                                                                         googleAccessToken = tokenData.access_token;
+                                                                                        console.log('Token refresh successful!');
                                                                                         toast("Google Drive connected!", "success");
 
                                                                                         // Use standard Google Picker for both desktop and web
                                                                                         await openStandardGooglePicker();
                                                                                         return;
+                                                                                      } else {
+                                                                                        console.log('Token refresh failed:', await refreshResponse.text());
+                                                                                        // Clear invalid token
+                                                                                        localStorage.removeItem('google_refresh_token');
                                                                                       }
                                                                                     } catch (e) {
-                                                                                      // Token refresh failed, continue to authorization
+                                                                                      console.log('Token refresh error:', e);
+                                                                                      // Clear invalid token on error
+                                                                                      localStorage.removeItem('google_refresh_token');
                                                                                     }
                                                                                   }
 
@@ -1524,13 +1602,14 @@
                                                                         // Desktop authorization function
                                                                         async function performDesktopAuth(clientId, clientSecret, callback = null) {
                                                                                 try {
-                                                                                  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-                                                                                    `client_id=${encodeURIComponent(clientId)}&` +
-                                                                                    `redirect_uri=${encodeURIComponent('urn:ietf:wg:oauth:2.0:oob')}&` +
-                                                                                    `response_type=code&` +
-                                                                                    `scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file')}&` +
-                                                                                    `access_type=offline&` +
-                                                                                    `prompt=consent`;
+                                                                            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+                                                                              `client_id=${encodeURIComponent(clientId)}&` +
+                                                                              `redirect_uri=${encodeURIComponent('urn:ietf:wg:oauth:2.0:oob')}&` +
+                                                                              `response_type=code&` +
+                                                                              `scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file')}&` +
+                                                                              `access_type=offline&` +
+                                                                              `prompt=consent&` +
+                                                                              `include_granted_scopes=true`;
 
                                                                                   // Open in system browser
                                                                                   if (window.pywebview && window.pywebview.api && window.pywebview.api.open_url) {
@@ -1592,8 +1671,6 @@
                                                                         // Improved Desktop authorization with system browser
                                                                         async function performDesktopAuthSystemBrowser(clientId, clientSecret, callback = null) {
                                                                           try {
-                                                                            // Clear any existing tokens to force fresh auth
-                                                                            localStorage.removeItem('google_refresh_token');
                                                                             googleAccessToken = null;
 
                                                                             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -1675,38 +1752,61 @@
                                                                           }
                                                                         }
 
-                                                                        // Web authorization function
+                                                                        // Web authorization function - use simple token approach for web
                                                                         async function performWebAuth(clientId, callback = null) {
-                                                                                try {
-                                                                                  if (typeof google !== 'undefined' && google.accounts) {
-                                                                                    const client = google.accounts.oauth2.initTokenClient({
-                                                                                      client_id: clientId,
-                                                                                      scope: 'https://www.googleapis.com/auth/drive.file',
-                                                                                    callback: async (response) => {
-                                                                                      if (response.access_token) {
-                                                                                        googleAccessToken = response.access_token;
-                                                                                        toast("Google authorized successfully!", "success");
+                                                                          try {
+                                                                            // For web, check if we have a cached token first
+                                                                            const cachedToken = localStorage.getItem('google_access_token');
+                                                                            const tokenExpiry = localStorage.getItem('google_token_expiry');
 
-                                                                                        // Execute callback or open standard Google Picker
-                                                                                        if (callback) {
-                                                                                          await callback();
-                                                                                        } else {
-                                                                                          await openStandardGooglePicker();
-                                                                                        }
-                                                                                      } else {
-                                                                                        toast("Authorization failed", "error");
-                                                                                      }
-                                                                                    }
-                                                                                    });
-                                                                                    client.requestAccessToken();
-                                                                                  } else {
-                                                                                    toast("Google services not available", "error");
-                                                                                  }
-                                                                                } catch (error) {
-                                                                                  console.error("Web auth error:", error);
-                                                                                  toast(`Authorization failed: ${error.message}`, "error");
-                                                                                }
+                                                                            if (cachedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
+                                                                              console.log('Using cached access token');
+                                                                              googleAccessToken = cachedToken;
+                                                                              toast("Google Drive connected!", "success");
+
+                                                                              if (callback) {
+                                                                                await callback();
+                                                                              } else {
+                                                                                await openStandardGooglePicker();
                                                                               }
+                                                                              return;
+                                                                            }
+
+                                                                            if (typeof google !== 'undefined' && google.accounts) {
+                                                                              const client = google.accounts.oauth2.initTokenClient({
+                                                                                client_id: clientId,
+                                                                                scope: 'https://www.googleapis.com/auth/drive.file',
+                                                                                callback: async (response) => {
+                                                                                  if (response.access_token) {
+                                                                                    googleAccessToken = response.access_token;
+
+                                                                                    // Cache the token for 1 hour (3600 seconds)
+                                                                                    localStorage.setItem('google_access_token', response.access_token);
+                                                                                    const expiryTime = Date.now() + (3600 * 1000); // 1 hour from now
+                                                                                    localStorage.setItem('google_token_expiry', expiryTime.toString());
+
+                                                                                    console.log('Web auth successful, token cached');
+                                                                                    toast("Google authorized successfully!", "success");
+
+                                                                                    if (callback) {
+                                                                                      await callback();
+                                                                                    } else {
+                                                                                      await openStandardGooglePicker();
+                                                                                    }
+                                                                                  } else {
+                                                                                    toast("Authorization failed", "error");
+                                                                                  }
+                                                                                }
+                                                                              });
+                                                                              client.requestAccessToken();
+                                                                            } else {
+                                                                              toast("Google services not available", "error");
+                                                                            }
+                                                                          } catch (error) {
+                                                                            console.error("Web auth error:", error);
+                                                                            toast(`Authorization failed: ${error.message}`, "error");
+                                                                          }
+                                                                        }
 
                                                                               // Standard Google Drive Picker (unified for both desktop and web)
                                                                               async function openStandardGooglePicker() {
@@ -1820,12 +1920,11 @@
                                                                             // Check for saved refresh token first
                                                                             let refreshToken = localStorage.getItem('google_refresh_token');
                                                                             {% if is_desktop %}
-                                                                            const savedRefreshToken = "{{ google_refresh_token or '' }}";
-                                                                            if (savedRefreshToken) refreshToken = savedRefreshToken;
+                                                                            if ("{{ google_refresh_token or '' }}") refreshToken = "{{ google_refresh_token or '' }}";
                                                                             {% endif %}
 
-                                                                            // Try to refresh existing token
-                                                                            if (refreshToken) {
+                                                                            // Try to refresh existing token (desktop) or use cached token (web)
+                                                                            if (refreshToken && clientSecret) {
                                                                               try {
                                                                                 const refreshResponse = await fetch("https://oauth2.googleapis.com/token", {
                                                                                   method: "POST",
@@ -1841,13 +1940,29 @@
                                                                                 if (refreshResponse.ok) {
                                                                                   const tokenData = await refreshResponse.json();
                                                                                   googleAccessToken = tokenData.access_token;
+                                                                                  console.log('Token refresh successful for store');
 
                                                                                   // Upload to Google Drive
                                                                                   await uploadDatabaseToDrive(dbName);
                                                                                   return;
+                                                                                } else {
+                                                                                  console.log('Store: Token refresh failed');
+                                                                                  localStorage.removeItem('google_refresh_token');
                                                                                 }
                                                                               } catch (e) {
-                                                                                // Token refresh failed, continue to authorization
+                                                                                console.log('Store: Token refresh error:', e);
+                                                                                localStorage.removeItem('google_refresh_token');
+                                                                              }
+                                                                            } else if (!clientSecret) {
+                                                                              // Web version - check cached access token
+                                                                              const cachedToken = localStorage.getItem('google_access_token');
+                                                                              const tokenExpiry = localStorage.getItem('google_token_expiry');
+
+                                                                              if (cachedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
+                                                                                console.log('Using cached access token for store');
+                                                                                googleAccessToken = cachedToken;
+                                                                                await uploadDatabaseToDrive(dbName);
+                                                                                return;
                                                                               }
                                                                             }
 
@@ -1978,11 +2093,7 @@
     <header class="max-w-7xl mx-auto px-6 py-6">
       <div class="text-center">
         <h1 id="pageTitle" class="text-3xl font-bold tracking-tight">
-          Databases {% if is_desktop %}
-          <span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2"
-            >Desktop</span
-          >
-          {% endif %}
+          Databases
         </h1>
         <p id="pageSubtitle" class="text-slate-400 mt-1 hidden"></p>
       </div>

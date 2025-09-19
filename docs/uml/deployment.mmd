@@ -1,14 +1,100 @@
-flowchart LR
-    subgraph Workstation
-        D[Desktop App\nPyWebview]
+flowchart TB
+    subgraph Internet [Internet Cloud]
+        GoogleServices[Google Services]
+        subgraph Google_APIs [Google APIs]
+            DriveAPI[Google Drive API]
+            OAuthAPI[Google OAuth 2.0]
+            PickerAPI[Google Picker API]
+        end
     end
-    subgraph Server
-        W[Web App\nFastAPI]
+    
+    subgraph Client_Environment [Client Environment]
+        subgraph Desktop_Deployment [Desktop Deployment]
+            DesktopMachine[Desktop Computer]
+            subgraph Desktop_Runtime [Desktop Runtime]
+                PythonRuntime[Python 3.10+]
+                PyWebViewApp[TDMS Desktop App]
+                EmbeddedServer[Embedded FastAPI Server]
+                LocalBrowser[Embedded Browser Engine]
+            end
+            subgraph Desktop_Storage [Local Storage]
+                LocalDB[Local JSON Databases]
+                ConfigFile[.env Configuration]
+                LogFiles[Application Logs]
+            end
+        end
+        
+        subgraph Web_Deployment [Web Deployment]
+            ClientBrowser[Web Browser]
+            subgraph Browser_Runtime [Browser Runtime]
+                HTMLRenderer[HTML/CSS Renderer]
+                JSEngine[JavaScript Engine]
+                HTTPClient[HTTP Client]
+            end
+        end
     end
-    subgraph Storage
-        J[JSON files]
+    
+    subgraph Server_Environment [Server Environment]
+        subgraph Web_Server [Web Server Infrastructure]
+            WebMachine[Web Server]
+            subgraph Server_Runtime [Server Runtime]
+                PythonServer[Python 3.10+]
+                FastAPIApp[TDMS Web Application]
+                UvicornServer[Uvicorn ASGI Server]
+            end
+            subgraph Server_Storage [Server Storage]
+                ServerDB[Server JSON Databases]
+                ServerConfig[Server Configuration]
+                ServerLogs[Server Logs]
+            end
+        end
     end
-    D <---> J
-    W <---> J
-    Browser((Browser)) --> W
-
+    
+    %% Network Connections
+    ClientBrowser -.->|HTTPS/HTTP| WebMachine
+    PyWebViewApp -.->|HTTPS| GoogleServices
+    ClientBrowser -.->|HTTPS| GoogleServices
+    FastAPIApp -.->|HTTPS| GoogleServices
+    
+    %% Internal Connections - Desktop
+    PyWebViewApp --> EmbeddedServer
+    EmbeddedServer --> LocalBrowser
+    PyWebViewApp --> LocalDB
+    PyWebViewApp --> ConfigFile
+    
+    %% Internal Connections - Web
+    HTTPClient --> UvicornServer
+    UvicornServer --> FastAPIApp
+    FastAPIApp --> ServerDB
+    FastAPIApp --> ServerConfig
+    
+    %% Google API Connections
+    GoogleServices --> DriveAPI
+    GoogleServices --> OAuthAPI
+    GoogleServices --> PickerAPI
+    
+    %% Deployment Artifacts
+    subgraph Artifacts [Deployment Artifacts]
+        DesktopExe[TDMS-Desktop.exe]
+        WebPackage[TDMS Web Package]
+        Requirements[requirements.txt]
+        BatchScripts[Setup Scripts]
+    end
+    
+    DesktopExe -.->|Deploys to| DesktopMachine
+    WebPackage -.->|Deploys to| WebMachine
+    Requirements -.->|Dependencies| PythonRuntime
+    Requirements -.->|Dependencies| PythonServer
+    BatchScripts -.->|Setup| DesktopMachine
+    
+    %% Network Protocols
+    classDef networkNode fill:#e3f2fd
+    classDef serverNode fill:#e8f5e8
+    classDef clientNode fill:#fff3e0
+    classDef storageNode fill:#f3e5f5
+    classDef externalNode fill:#ffebee
+    
+    class ClientBrowser,PyWebViewApp,HTTPClient,JSEngine clientNode
+    class WebMachine,FastAPIApp,UvicornServer,PythonServer serverNode
+    class LocalDB,ServerDB,ConfigFile,ServerConfig storageNode
+    class GoogleServices,DriveAPI,OAuthAPI,PickerAPI externalNode

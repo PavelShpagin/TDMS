@@ -1,9 +1,99 @@
 stateDiagram-v2
-    [*] --> Defined
-    Defined --> Active: rows inserted
-    Active --> Saved: saved to JSON
-    Saved --> Loaded: load from JSON
-    Loaded --> Active
-    Active --> Deleted
-    Deleted --> [*]
-
+    [*] --> ApplicationStart
+    
+    ApplicationStart --> InitializingDesktop: Desktop Mode
+    ApplicationStart --> InitializingWeb: Web Mode
+    
+    InitializingDesktop --> LoadingEnvironment: Load .env
+    InitializingWeb --> StartingServer: Start FastAPI
+    
+    LoadingEnvironment --> StartingEmbeddedServer: Environment Loaded
+    StartingEmbeddedServer --> CreatingWindow: Server Started
+    CreatingWindow --> ApplicationReady: PyWebView Window Created
+    
+    StartingServer --> ApplicationReady: Server Running on Port 8000
+    
+    ApplicationReady --> DatabaseManagement: User Interaction
+    
+    state DatabaseManagement {
+        [*] --> NoDatabaseSelected
+        NoDatabaseSelected --> DatabaseSelected: Create/Switch Database
+        DatabaseSelected --> TableManagement: Manage Tables
+        DatabaseSelected --> GoogleDriveIntegration: Drive Operations
+        DatabaseSelected --> DatabasePersistence: Save/Load Operations
+        
+        state TableManagement {
+            [*] --> NoTablesExist
+            NoTablesExist --> TablesExist: Create Table
+            TablesExist --> RowOperations: Select Table
+            TablesExist --> UnionOperations: Union Tables
+            
+            state RowOperations {
+                [*] --> ViewingRows
+                ViewingRows --> EditingRow: Edit Row
+                ViewingRows --> AddingRow: Add Row
+                ViewingRows --> DeletingRow: Delete Row
+                EditingRow --> ValidatingData: Submit Changes
+                AddingRow --> ValidatingData: Submit Data
+                ValidatingData --> ViewingRows: Valid Data
+                ValidatingData --> ShowingError: Invalid Data
+                ShowingError --> ViewingRows: Retry
+                DeletingRow --> ViewingRows: Confirmed
+            }
+            
+            state UnionOperations {
+                [*] --> SelectingTables
+                SelectingTables --> ValidatingSchemas: Tables Selected
+                ValidatingSchemas --> CreatingUnion: Compatible Schemas
+                ValidatingSchemas --> ShowingSchemaError: Incompatible Schemas
+                CreatingUnion --> TablesExist: Union Created
+                ShowingSchemaError --> SelectingTables: Retry
+            }
+        }
+        
+        state GoogleDriveIntegration {
+            [*] --> CheckingAuthentication
+            CheckingAuthentication --> Authenticated: Has Valid Token
+            CheckingAuthentication --> NotAuthenticated: No Token/Expired
+            NotAuthenticated --> AuthenticatingOAuth: Start OAuth Flow
+            AuthenticatingOAuth --> Authenticated: Authorization Granted
+            AuthenticatingOAuth --> AuthenticationFailed: Authorization Denied
+            AuthenticationFailed --> CheckingAuthentication: Retry
+            Authenticated --> DriveOperations: Ready for Drive Operations
+            
+            state DriveOperations {
+                [*] --> ReadyForOperation
+                ReadyForOperation --> LoadingFromDrive: Load Operation
+                ReadyForOperation --> SavingToDrive: Save Operation
+                LoadingFromDrive --> ShowingPicker: Display Google Picker
+                ShowingPicker --> DownloadingFile: File Selected
+                DownloadingFile --> ImportingDatabase: File Downloaded
+                ImportingDatabase --> ReadyForOperation: Import Complete
+                SavingToDrive --> UploadingFile: Export Database
+                UploadingFile --> ReadyForOperation: Upload Complete
+            }
+        }
+        
+        state DatabasePersistence {
+            [*] --> InMemory
+            InMemory --> SavingToFile: Auto-save Triggered
+            InMemory --> LoadingFromFile: Load Operation
+            SavingToFile --> Persisted: Save Complete
+            LoadingFromFile --> InMemory: Load Complete
+            Persisted --> InMemory: Continue Operations
+        }
+    }
+    
+    DatabaseManagement --> ApplicationShutdown: Exit Application
+    ApplicationShutdown --> SavingAllData: Auto-save All Databases
+    SavingAllData --> CleaningUp: Save Complete
+    CleaningUp --> [*]: Cleanup Complete
+    
+    %% Error States
+    ApplicationStart --> ApplicationError: Initialization Failed
+    ApplicationError --> [*]: Fatal Error
+    
+    %% Auto-save Transitions
+    RowOperations --> DatabasePersistence: Auto-save After Changes
+    UnionOperations --> DatabasePersistence: Auto-save After Union
+    GoogleDriveIntegration --> DatabasePersistence: Auto-save After Import

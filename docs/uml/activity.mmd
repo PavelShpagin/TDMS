@@ -1,9 +1,80 @@
 flowchart TD
-    A[Start] --> B[User submits values]
-    B --> C[Validate against schema]
-    C -->|valid| D[Normalize values]
-    C -->|invalid| E[Error]
-    D --> F[Append Row]
-    F --> G[End]
-    E --> G
-
+    Start([Start TDMS Application]) --> CheckMode{Desktop or Web?}
+    
+    CheckMode -->|Desktop| InitDesktop[Initialize PyWebView]
+    CheckMode -->|Web| InitWeb[Start FastAPI Server]
+    
+    InitDesktop --> StartServer[Start Embedded Server]
+    StartServer --> FindPort[Find Free Port]
+    FindPort --> LoadEnv[Load .env Configuration]
+    LoadEnv --> CreateWindow[Create PyWebView Window]
+    CreateWindow --> Ready[Application Ready]
+    
+    InitWeb --> LoadConfig[Load Configuration]
+    LoadConfig --> StartAPI[Start FastAPI on Port 8000]
+    StartAPI --> Ready
+    
+    Ready --> UserAction{User Action}
+    
+    UserAction -->|Create Database| CreateDB[Create New Database]
+    UserAction -->|Create Table| CreateTable[Define Table Schema]
+    UserAction -->|Insert Row| InsertRow[Add Row Data]
+    UserAction -->|Edit Row| EditRow[Modify Row Data]
+    UserAction -->|Delete Row| DeleteRow[Remove Row]
+    UserAction -->|Union Tables| UnionTables[Combine Tables]
+    UserAction -->|Google Drive| DriveOp[Google Drive Operation]
+    UserAction -->|Exit| SaveAndExit[Auto-save and Exit]
+    
+    CreateDB --> ValidateDBName{Valid Name?}
+    ValidateDBName -->|Yes| StoreDB[Store Database]
+    ValidateDBName -->|No| ShowError[Show Error Message]
+    StoreDB --> UserAction
+    ShowError --> UserAction
+    
+    CreateTable --> ValidateSchema{Valid Schema?}
+    ValidateSchema -->|Yes| StoreTable[Create Table]
+    ValidateSchema -->|No| ShowError
+    StoreTable --> UserAction
+    
+    InsertRow --> ValidateData{Valid Data Types?}
+    ValidateData -->|Yes| NormalizeData[Normalize Values]
+    ValidateData -->|No| ShowError
+    NormalizeData --> AddRow[Add to Table]
+    AddRow --> AutoSave[Auto-save Database]
+    AutoSave --> UserAction
+    
+    EditRow --> ValidateData
+    
+    DeleteRow --> ConfirmDelete{Confirm Deletion?}
+    ConfirmDelete -->|Yes| RemoveRow[Remove from Table]
+    ConfirmDelete -->|No| UserAction
+    RemoveRow --> AutoSave
+    
+    UnionTables --> CheckCompatibility{Compatible Schemas?}
+    CheckCompatibility -->|Yes| MergeTables[Merge Table Data]
+    CheckCompatibility -->|No| ShowError
+    MergeTables --> CreateUnionTable[Create Result Table]
+    CreateUnionTable --> AutoSave
+    
+    DriveOp --> CheckAuth{Authenticated?}
+    CheckAuth -->|No| Authenticate[Google OAuth Flow]
+    CheckAuth -->|Yes| DriveAction{Load or Save?}
+    Authenticate --> DriveAction
+    
+    DriveAction -->|Load| ShowPicker[Show Google Picker]
+    DriveAction -->|Save| UploadFile[Upload to Drive]
+    ShowPicker --> DownloadFile[Download Selected File]
+    DownloadFile --> ImportDB[Import Database]
+    ImportDB --> HandleDuplicates{Name Exists?}
+    HandleDuplicates -->|Yes| AddSuffix[Add (1), (2) suffix]
+    HandleDuplicates -->|No| StoreImported[Store Database]
+    AddSuffix --> StoreImported
+    StoreImported --> UserAction
+    UploadFile --> UserAction
+    
+    SaveAndExit --> FinalSave[Save All Databases]
+    FinalSave --> Cleanup[Cleanup Resources]
+    Cleanup --> End([End])
+    
+    %% Error handling
+    ShowError --> UserAction
