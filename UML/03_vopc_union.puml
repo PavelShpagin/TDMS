@@ -45,10 +45,6 @@ Database --> Operations : perform union
 Operations --> JSONStorage : save result
 JSONStorage --> UserInterface : show success
 
-note bottom
-  Variant #58 Special Operation:
-  Union combines two tables
-  into one result table
-end note
+
 
 @enduml

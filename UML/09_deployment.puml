@@ -32,9 +32,6 @@ cloud "Google Cloud" {
 [Python Server] --> [Google Drive] : Upload/Download
 [Google Drive] --> [Auth Service] : Authenticate
 
-note bottom of "Your Computer"
-  Everything runs locally
-  Google Drive is optional
-end note
+
 
 @enduml

@@ -19,14 +19,7 @@ Table -> Validator: validate_row(schema, values)
 
 alt Each column value
   Validator -> Validator: Check type
-  note right
-    integer → int
-    real → float
-    char → 1 character
-    string → text
-    date → YYYY-MM-DD
-    dateInvl → {start, end}
-  end note
+  
 end
 
 alt Validation successful

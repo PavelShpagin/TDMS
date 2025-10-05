@@ -6,8 +6,8 @@ echo    TDMS Environment Setup Script
 echo ========================================
 echo.
 echo This script will:
-echo - Create Python virtual environment
-echo - Install all required dependencies
+echo - Install uv package manager (if needed)
+echo - Install all required dependencies via uv
 echo - Set up configuration files
 echo - Prepare for both web and desktop usage
 echo.
@@ -16,7 +16,7 @@ REM Check if Python is available
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Python is not installed or not in PATH
-    echo Please install Python 3.7+ from https://python.org
+    echo Please install Python 3.10+ from https://python.org
     echo Make sure to check "Add Python to PATH" during installation
     pause
     exit /b 1
@@ -27,108 +27,91 @@ python --version
 
 echo.
 echo ========================================
-echo Step 1: Creating Virtual Environment
+echo Step 1: Checking uv Installation
 echo ========================================
 
-REM Remove existing venv if it exists
+REM Check if uv is installed
+uv --version >nul 2>&1
+if errorlevel 1 (
+    echo uv not found. Please install uv first:
+    echo.
+    echo   Windows: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    echo   Or visit: https://docs.astral.sh/uv/getting-started/installation/
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ✓ uv package manager found
+uv --version
+
+echo.
+echo ========================================
+echo Step 2: Installing Dependencies with uv
+echo ========================================
+
+REM Remove old venv if it exists
 if exist "venv" (
-    echo Removing existing virtual environment...
+    echo Removing old venv directory...
     rmdir /s /q venv
 )
 
-echo Creating new virtual environment...
-python -m venv venv
+REM Remove old .venv if it exists
+if exist ".venv" (
+    echo Removing old .venv directory...
+    rmdir /s /q .venv
+)
+
+echo Installing dependencies from requirements.txt...
+uv add --requirements requirements.txt
 if errorlevel 1 (
-    echo ERROR: Failed to create virtual environment
-    echo Make sure you have sufficient permissions
+    echo ERROR: Failed to install dependencies with uv
     pause
     exit /b 1
 )
 
-echo ✓ Virtual environment created
+echo ✓ Dependencies installed
 
 echo.
 echo ========================================
-echo Step 2: Activating Environment
+echo Step 3: Locking Dependencies
 echo ========================================
 
-call venv\Scripts\activate.bat
+echo Creating lockfile...
+uv lock
 if errorlevel 1 (
-    echo ERROR: Failed to activate virtual environment
-    pause
-    exit /b 1
+    echo WARNING: Failed to lock dependencies
 )
 
-echo ✓ Virtual environment activated
+echo ✓ Dependencies locked
 
 echo.
 echo ========================================
-echo Step 3: Upgrading pip
+echo Step 4: Syncing Environment
 echo ========================================
 
-python -m pip install --upgrade pip
+echo Syncing virtual environment...
+uv sync
 if errorlevel 1 (
-    echo WARNING: Failed to upgrade pip, continuing anyway...
+    echo ERROR: Failed to sync environment
+    pause
+    exit /b 1
 )
 
-echo ✓ pip upgraded
+echo ✓ Environment synced
 
 echo.
 echo ========================================
-echo Step 4: Installing Core Dependencies
+echo Step 5: Installing Development Dependencies
 echo ========================================
 
-echo Installing FastAPI and web dependencies...
-pip install fastapi[all]
-if errorlevel 1 (
-    echo ERROR: Failed to install FastAPI
-    pause
-    exit /b 1
-)
-
-echo Installing PyWebView for desktop...
-pip install pywebview
-if errorlevel 1 (
-    echo ERROR: Failed to install PyWebView
-    pause
-    exit /b 1
-)
-
-echo Installing configuration management...
-pip install python-dotenv
-if errorlevel 1 (
-    echo ERROR: Failed to install python-dotenv
-    pause
-    exit /b 1
-)
-
-echo Installing testing framework...
-pip install pytest pytest-cov pytest-html
+echo Installing pytest and coverage tools...
+uv add --dev pytest pytest-cov pytest-html
 if errorlevel 1 (
     echo WARNING: Failed to install testing dependencies
 )
 
-echo Installing additional web server...
-pip install uvicorn
-if errorlevel 1 (
-    echo WARNING: Failed to install uvicorn
-)
-
-echo ✓ All dependencies installed
-
-echo.
-echo ========================================
-echo Step 5: Installing Windows WebView Engine
-echo ========================================
-
-echo Installing Edge WebView2 support for PyWebView...
-pip install pywebview[cef] 2>nul
-if errorlevel 1 (
-    echo Note: CEF support not available, using system WebView
-    echo This is normal on some systems
-)
-
-echo ✓ WebView engine configured
+echo ✓ Development dependencies installed
 
 echo.
 echo ========================================
@@ -190,7 +173,7 @@ echo Step 7: Verifying Installation
 echo ========================================
 
 echo Testing FastAPI import...
-python -c "import fastapi; print('✓ FastAPI:', fastapi.__version__)" 2>nul
+uv run python -c "import fastapi; print('✓ FastAPI:', fastapi.__version__)" 2>nul
 if errorlevel 1 (
     echo ✗ FastAPI import failed
     set SETUP_ERROR=1
@@ -199,7 +182,7 @@ if errorlevel 1 (
 )
 
 echo Testing PyWebView import...
-python -c "import webview; print('✓ PyWebView: OK')" 2>nul
+uv run python -c "import webview; print('✓ PyWebView: OK')" 2>nul
 if errorlevel 1 (
     echo ✗ PyWebView import failed
     set SETUP_ERROR=1
@@ -208,7 +191,7 @@ if errorlevel 1 (
 )
 
 echo Testing python-dotenv import...
-python -c "import dotenv; print('✓ python-dotenv: OK')" 2>nul
+uv run python -c "import dotenv; print('✓ python-dotenv: OK')" 2>nul
 if errorlevel 1 (
     echo ✗ python-dotenv import failed
     set SETUP_ERROR=1
@@ -217,7 +200,7 @@ if errorlevel 1 (
 )
 
 echo Testing TDMS core modules...
-python -c "from src.core.database import Database; print('✓ TDMS core modules: OK')" 2>nul
+uv run python -c "from src.core.database import Database; print('✓ TDMS core modules: OK')" 2>nul
 if errorlevel 1 (
     echo ✗ TDMS core import failed
     set SETUP_ERROR=1
@@ -240,13 +223,15 @@ if defined SETUP_ERROR (
 )
 
 echo 📁 Project Structure:
-echo   ├── venv\                 # Virtual environment
+echo   ├── .venv\                # uv virtual environment
 echo   ├── src\                  # Source code
 echo   ├── databases\            # Web app databases
 echo   ├── desktop_databases\    # Desktop app databases  
 echo   ├── tests\                # Unit tests
 echo   ├── .env                  # Configuration file
-echo   ├── desktop.bat            # Desktop launcher
+echo   ├── pyproject.toml        # Project dependencies
+echo   ├── uv.lock              # Locked dependencies
+echo   ├── desktop.bat           # Desktop launcher
 echo   ├── run_server.py         # Web server launcher
 echo   └── unit_test.bat         # Test runner
 echo.
@@ -257,7 +242,7 @@ echo   Desktop Application:
 echo     desktop.bat
 echo.
 echo   Web Application:
-echo     python run_server.py
+echo     uv run python run_server.py
 echo     ^(Access at http://localhost:8000^)
 echo.
 echo   Run Tests:
@@ -268,7 +253,7 @@ echo 📝 Next Steps:
 echo   1. Edit .env file with your Google OAuth credentials
 echo   2. See SETUP_GUIDE.md for credential setup instructions
 echo   3. Run desktop.bat to start desktop app
-echo   4. Or run "python run_server.py" for web app
+echo   4. Or run "uv run python run_server.py" for web app
 echo.
 
 echo ========================================

@@ -1,58 +1,16 @@
 @startuml state
 !theme plain
-title TDMS - System States
+title TDMS - Simple State Flow
 
-[*] --> Starting
-
-Starting --> Ready : Load databases
-Starting --> Ready : Create new
+[*] --> Ready
 
 state Ready {
   [*] --> Idle
-  
   Idle --> Working : User action
-  
-  state Working {
-    [*] --> Choose
-    Choose --> ManagingDB : Database ops
-    Choose --> ManagingTable : Table ops
-    Choose --> SavingData : Save/Load
-    
-    ManagingDB --> Choose
-    ManagingTable --> Choose
-    SavingData --> Choose
-  }
-  
   Working --> Idle : Done
 }
 
-state ManagingDB {
-  Create : Create database
-  Switch : Switch database
-  Delete : Delete database
-}
-
-state ManagingTable {
-  CreateTable : Create table
-  InsertData : Add rows
-  ViewData : View table
-  UnionTables : Combine tables
-}
-
-state SavingData {
-  SaveLocal : Save to file
-  LoadLocal : Load from file
-  SaveCloud : Save to Google
-  LoadCloud : Load from Google
-}
-
 Ready --> Closing : Exit
-
 Closing --> [*] : Shutdown
-
-note right of UnionTables
-  Variant #58
-  special operation
-end note
 
 @enduml

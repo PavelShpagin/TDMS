@@ -31,10 +31,6 @@ else Schemas incompatible
   UI --> User: "Tables don't match"
 end
 
-note over Union
-  Variant #58 operation:
-  Combines all rows from
-  both tables into one
-end note
+
 
 @enduml

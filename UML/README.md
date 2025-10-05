@@ -1,7 +1,7 @@
 # UML Diagrams for TDMS DBMS
 
 ## Project: Table Database Management System
-**Variant 58**: date/dateInvl types + Union operation
+This project includes support for `date`/`dateInvl` types and the Union operation.
 
 ## Diagram List (10 diagrams total)
 
@@ -12,7 +12,7 @@ Shows what users can do with the system - create databases, manage tables, save 
 The main classes in the system: Database, Table, Column, Row, TypeValidator, and Operations.
 
 ### 3. VOPC Union Diagram (`03_vopc_union.puml`)
-View-Object-Persistence-Control for the Union operation (your variant #58 requirement).
+View-Object-Persistence-Control for the Union operation.
 
 ### 4. Activity Diagram (`04_activity.puml`)
 Step-by-step workflow of creating tables and adding data.
@@ -33,22 +33,21 @@ Major components and how they connect.
 Where everything runs - local server and Google Cloud.
 
 ### 10. Sequence: Union Tables (`10_sequence_union.puml`)
-How two tables are combined (variant #58 operation).
+How two tables are combined.
 
 ## Your Implementation Features
 
 ### Supported Data Types
 - **Basic**: integer, real, char, string
-- **Variant 58**: 
-  - `date` - dates in YYYY-MM-DD format
-  - `dateInvl` - date intervals with start and end
+- `date` - dates in YYYY-MM-DD format
+- `dateInvl` - date intervals with start and end
 
 ### Implemented Operations
 - Create/switch/delete databases
 - Create/drop tables
 - Insert rows (with edit_row in core)
 - View table data
-- **Union tables** (variant 58 special operation)
+- Union tables
 - Save/load locally
 - Save/load to Google Drive
 

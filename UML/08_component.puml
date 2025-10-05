@@ -1,52 +1,9 @@
 @startuml component
 !theme plain
-title TDMS - System Components
+title TDMS - Simple Components
 
-package "User Interface" {
-  [Web Browser]
-  [Desktop App]
-}
-
-package "Server" {
-  [FastAPI Web Server]
-  [API Endpoints]
-}
-
-package "Core System" {
-  [Database Manager]
-  [Table Manager]
-  [Type Validator]
-  [Union Operation]
-}
-
-package "Storage" {
-  [Local Files]
-  [Google Drive]
-}
-
-[Web Browser] --> [FastAPI Web Server] : HTTP
-[Desktop App] --> [FastAPI Web Server] : localhost
-
-[FastAPI Web Server] --> [API Endpoints]
-
-[API Endpoints] --> [Database Manager]
-[API Endpoints] --> [Table Manager]
-[API Endpoints] --> [Union Operation]
-
-[Table Manager] --> [Type Validator]
-
-[Database Manager] --> [Local Files] : JSON
-[Database Manager] --> [Google Drive] : API
-
-note bottom of [Type Validator]
-  Validates:
-  date, dateInvl
-  (Variant #58)
-end note
-
-note bottom of [Union Operation]
-  Combines tables
-  (Variant #58)
-end note
+[UI] --> [API]
+[API] --> [Core]
+[Core] --> [Storage]
 
 @enduml

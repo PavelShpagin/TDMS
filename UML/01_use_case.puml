@@ -45,9 +45,6 @@ User --> UC12
 UC11 ..> GDrive : uploads
 UC12 ..> GDrive : downloads
 
-note right of UC7
-  Union operation
-  (Your variant #58)
-end note
+
 
 @enduml

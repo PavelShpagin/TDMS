@@ -6,8 +6,24 @@ echo    TDMS Desktop Application Launcher
 echo ========================================
 echo.
 
-REM Check if virtual environment exists
-if not exist "venv\Scripts\python.exe" (
+REM Check if uv is installed
+uv --version >nul 2>&1
+if errorlevel 1 (
+    echo ❌ uv package manager not found!
+    echo.
+    echo Please install uv first:
+    echo   Windows: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    echo   Or visit: https://docs.astral.sh/uv/getting-started/installation/
+    echo.
+    echo After installing uv, run setup_env.bat:
+    echo   setup_env.bat
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Check if .venv exists
+if not exist ".venv" (
     echo ❌ Virtual environment not found!
     echo.
     echo Please run setup_env.bat first to set up the environment:
@@ -18,17 +34,7 @@ if not exist "venv\Scripts\python.exe" (
     exit /b 1
 )
 
-REM Activate virtual environment
-echo 🔄 Activating virtual environment...
-call venv\Scripts\activate.bat
-if errorlevel 1 (
-    echo ❌ Failed to activate virtual environment
-    echo Try running setup_env.bat to recreate the environment
-    pause
-    exit /b 1
-)
-
-echo ✅ Virtual environment activated
+echo ✓ uv environment found
 
 REM Check if .env file exists
 if not exist ".env" (
@@ -52,8 +58,8 @@ echo    Port: Auto-detected (8001-8099)
 echo    Mode: Desktop with embedded web server
 echo.
 
-REM Start the application
-python -m src.desktop.simple_app
+REM Start the application using uv run
+uv run python -m src.desktop.simple_app
 
 if errorlevel 1 (
     echo.
@@ -66,7 +72,7 @@ if errorlevel 1 (
     echo 1. Run setup_env.bat to reinstall dependencies:
     echo      setup_env.bat
     echo.
-    echo 2. Check if Python 3.7+ is installed:
+    echo 2. Check if Python 3.10+ is installed:
     echo      python --version
     echo.
     echo 3. Verify all project files are present
@@ -93,6 +99,5 @@ if errorlevel 1 (
 echo.
 echo ✅ Application closed successfully.
 pause
-
 
 

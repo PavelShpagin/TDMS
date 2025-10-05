@@ -57,10 +57,6 @@ Table --> Row : stores many
 Table ..> TypeValidator : uses for validation
 Operations ..> Table : combines
 
-note right of TypeValidator
-  Your variant #58:
-  - date (YYYY-MM-DD)
-  - dateInvl (date ranges)
-end note
+
 
 @enduml

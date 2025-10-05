@@ -8,7 +8,7 @@ REM Check if Python is available
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Python is not installed or not in PATH
-    echo Please install Python 3.8+ and add it to your PATH
+    echo Please install Python 3.10+ and add it to your PATH
     pause
     exit /b 1
 )
@@ -17,29 +17,40 @@ echo Python version:
 python --version
 echo.
 
+REM Check if uv is installed
+uv --version >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: uv package manager not found!
+    echo.
+    echo Please install uv first:
+    echo   Windows: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    echo   Or visit: https://docs.astral.sh/uv/getting-started/installation/
+    echo.
+    pause
+    exit /b 1
+)
+
+echo uv version:
+uv --version
+echo.
+
 REM Check if virtual environment exists
-if exist "venv\Scripts\activate.bat" (
-    echo Activating virtual environment...
-    call venv\Scripts\activate.bat
-    echo Virtual environment activated.
+if exist ".venv" (
+    echo ✓ uv virtual environment found.
     echo.
 ) else (
-    echo No virtual environment found. Using system Python.
-    echo To create a virtual environment, run setup_environment.bat
+    echo No virtual environment found. Running setup...
+    echo To create the environment, run setup_env.bat
     echo.
 )
 
-REM Install dependencies if needed
-echo Checking dependencies...
-pip install -r requirements.txt --quiet
-if errorlevel 1 (
-    echo WARNING: Some dependencies may not be installed correctly
-    echo.
-)
-
-REM Install additional test dependencies
+REM Ensure test dependencies are installed
 echo Installing test dependencies...
-pip install pytest-cov pytest-html --quiet
+uv add --dev pytest pytest-cov pytest-html
+if errorlevel 1 (
+    echo WARNING: Some test dependencies may not be installed correctly
+    echo.
+)
 
 echo ========================================
 echo Running Unit Tests
@@ -59,22 +70,22 @@ set /p CHOICE="Enter your choice (1-5): "
 
 if "%CHOICE%"=="1" (
     echo Running quick tests...
-    python -m pytest tests/ -v --tb=short
+    uv run pytest tests/ -v --tb=short
 ) else if "%CHOICE%"=="2" (
     echo Running full tests with coverage...
-    python -m pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html:htmlcov --tb=short
+    uv run pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html:htmlcov --tb=short
 ) else if "%CHOICE%"=="3" (
     echo Running desktop app tests...
-    python -m pytest tests/test_desktop_api.py -v --tb=short
+    uv run pytest tests/test_desktop_api.py -v --tb=short
 ) else if "%CHOICE%"=="4" (
     echo Running core module tests...
-    python -m pytest tests/test_core.py -v --tb=short
+    uv run pytest tests/test_core.py -v --tb=short
 ) else if "%CHOICE%"=="5" (
     echo Running web API tests...
-    python -m pytest tests/test_web_api.py -v --tb=short
+    uv run pytest tests/test_web_api.py -v --tb=short
 ) else (
     echo Invalid choice. Running all tests with coverage...
-    python -m pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html:htmlcov --tb=short
+    uv run pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=html:htmlcov --tb=short
 )
 
 if errorlevel 1 (
@@ -107,6 +118,5 @@ if exist "htmlcov\index.html" (
 echo.
 echo Test run completed.
 pause
-
 
 

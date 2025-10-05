@@ -17,10 +17,6 @@ API -> API: Get current database
 API -> API: Convert to JSON
 
 API -> GService: Authenticate
-note right
-  Using service account
-  credentials from .env
-end note
 
 GService -> Drive: Upload file
 Drive --> GService: File ID

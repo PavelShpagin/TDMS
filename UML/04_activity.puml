@@ -26,15 +26,7 @@ if (Create table?) then (yes)
   repeat
     :Column name;
     :Column type;
-    note right
-      Types available:
-      • integer
-      • real  
-      • char
-      • string
-      • date
-      • dateInvl
-    end note
+    
   repeat while (More columns?)
   :Create table;
   

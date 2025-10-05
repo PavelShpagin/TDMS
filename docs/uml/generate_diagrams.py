@@ -10,30 +10,37 @@ import sys
 from pathlib import Path
 
 def check_mermaid_cli():
-    """Check if mermaid-cli is installed"""
+    """Return the CLI command to run Mermaid (mmdc or npx fallback), or None if unavailable."""
     try:
-        result = subprocess.run(['mmdc', '--version'], 
-                              capture_output=True, text=True, check=True)
+        result = subprocess.run(['mmdc', '--version'], capture_output=True, text=True, check=True)
         print(f"✅ Mermaid CLI found: {result.stdout.strip()}")
-        return True
+        return ['mmdc']
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("❌ Mermaid CLI not found!")
-        print("📦 Install with: npm install -g @mermaid-js/mermaid-cli")
-        return False
+        pass
 
-def generate_diagram(mmd_file, output_dir):
+    try:
+        result = subprocess.run(['npx', '-y', '@mermaid-js/mermaid-cli', '--version'],
+                                capture_output=True, text=True, check=True)
+        print(f"✅ Mermaid via npx found: {result.stdout.strip()}")
+        return ['npx', '-y', '@mermaid-js/mermaid-cli']
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("❌ Mermaid CLI not found and npx fallback unavailable!")
+        print("📦 Install with: npm install -g @mermaid-js/mermaid-cli or install Node.js to use npx")
+        return None
+
+def generate_diagram(cli_cmd, mmd_file, output_dir):
     """Generate PNG from Mermaid file"""
     mmd_path = Path(mmd_file)
     output_path = output_dir / f"{mmd_path.stem}.png"
     
     try:
         cmd = [
-            'mmdc',
+            *cli_cmd,
             '-i', str(mmd_path),
             '-o', str(output_path),
-            '-t', 'neutral',  # Clean theme
-            '-b', 'white',    # White background
-            '--width', '1200', # Good resolution
+            '-t', 'neutral',
+            '-b', 'white',
+            '--width', '1200',
             '--height', '800'
         ]
         
@@ -50,8 +57,9 @@ def main():
     print("🎨 TDMS UML Diagram Generator")
     print("=" * 40)
     
-    # Check if mermaid-cli is available
-    if not check_mermaid_cli():
+    # Determine Mermaid CLI command (mmdc or npx fallback)
+    cli_cmd = check_mermaid_cli()
+    if cli_cmd is None:
         return 1
     
     # Setup paths
@@ -75,7 +83,7 @@ def main():
     total_count = len(mmd_files)
     
     for mmd_file in sorted(mmd_files):
-        if generate_diagram(mmd_file, output_dir):
+        if generate_diagram(cli_cmd, mmd_file, output_dir):
             success_count += 1
     
     print()

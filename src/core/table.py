@@ -32,16 +32,31 @@ class Table:
         return self.rows[index]
 
     def get_rows(self) -> List[Dict[str, Any]]:
-        return [r.values for r in self.rows]
+        # Be resilient if rows were accidentally set as plain dicts
+        result: List[Dict[str, Any]] = []
+        for r in self.rows:
+            if isinstance(r, Row):
+                result.append(r.values)
+            else:
+                # Assume r is already a dict-like mapping
+                result.append(dict(r))
+        return result
 
     def schema_signature(self) -> Tuple[Tuple[str, str], ...]:
         return tuple(self.schema)
 
     def to_json(self) -> Dict[str, Any]:
+        # Support both Row instances and plain dicts for robustness
+        serialized_rows: List[Dict[str, Any]] = []
+        for r in self.rows:
+            if isinstance(r, Row):
+                serialized_rows.append(r.to_json())
+            else:
+                serialized_rows.append(dict(r))
         return {
             "name": self.name,
             "columns": [c.to_json() for c in self.columns],
-            "rows": [r.to_json() for r in self.rows],
+            "rows": serialized_rows,
         }
 
     @staticmethod

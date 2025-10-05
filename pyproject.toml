@@ -1,0 +1,21 @@
+[project]
+name = "tdms"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi[all]==0.104.1",
+    "google-api-python-client==2.108.0",
+    "google-auth==2.23.4",
+    "google-auth-httplib2==0.1.1",
+    "google-auth-oauthlib==1.1.0",
+    "python-dotenv==1.0.0",
+    "pywebview==4.4.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-html>=4.1.1",
+]
