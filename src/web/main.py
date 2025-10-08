@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -14,6 +14,12 @@ import json
 import os
 import io
 import time
+from uuid import uuid4
+import redis
+import threading
+
+# Drive service for user-token based uploads (desktop/local sync fallback)
+from src.services.drive_service import DriveService
 
 # Load environment from .env if present
 try:
@@ -47,8 +53,13 @@ STATIC_DIR = BASE_DIR / "static"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+
 # In-memory OAuth state store for desktop loopback flow
 _oauth_states: Dict[str, Dict[str, Any]] = {}
+
+# In-memory token cache for desktop mode (when Redis unavailable)
+_desktop_google_token: Optional[str] = None
+_desktop_google_token_expiry: Optional[int] = None
 
 
 @app.on_event("startup")
@@ -68,12 +79,22 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Save all databases on shutdown"""
+    """Save all databases and clean up Redis tokens on server shutdown."""
     print("Saving all databases...")
     for db_name in _db_registry:
         _save_database(db_name)
-
     print("All databases saved.")
+    
+    # Clean up Google Drive tokens from Redis
+    try:
+        r = redis.Redis.from_url(
+            os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True
+        )
+        r.delete("tdms:google:access_token")
+        r.delete("tdms:google:token_expiry")
+        print("[SHUTDOWN] Cleaned up Google Drive tokens from Redis")
+    except Exception as e:
+        print(f"[SHUTDOWN] Warning: Could not clean Redis tokens: {e}")
 
 
 # Multi-database registry with persistence
@@ -284,6 +305,124 @@ def list_databases():
     return {"active": _active_db_name, "databases": sorted_names}
 
 
+# Sync endpoints
+@app.post("/api/databases/{db_name}/sync/start")
+async def start_sync(db_name: str):
+    if db_name not in _db_registry:
+        raise HTTPException(status_code=404, detail=f"Database '{db_name}' not found")
+
+    try:
+        r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+        # Test connection
+        r.ping()
+        token = str(uuid4())
+        r.set(f"tdms:sync:token:{db_name}", token)
+        from src.tasks.sync_tasks import sync_loop
+        sync_loop.delay(db_name, token)
+        return {"status": "enabled", "database": db_name, "mode": "worker"}
+    except Exception:
+        # Desktop/local fallback: run an in-process lightweight sync loop
+        # that uses a user access token cached in localStorage and sent to backend
+        # via /api/google/oauth/save_access_token. We run a daemon thread that
+        # periodically uploads the DB using DriveService with the token if present.
+        interval = 5
+
+        # Store a flag so we can stop the local loop on "stop"
+        if not hasattr(start_sync, "_local_sync_flags"):
+            start_sync._local_sync_flags = {}
+
+        stop_flag = threading.Event()
+        start_sync._local_sync_flags[db_name] = stop_flag
+
+        def _local_sync_loop() -> None:
+            global _desktop_google_token, _desktop_google_token_expiry
+            while not stop_flag.is_set():
+                try:
+                    # Try to read short-lived access token from Redis if available
+                    access_token = None
+                    try:
+                        rr = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+                        rr.ping()
+                        access_token = rr.get("tdms:google:access_token")
+                    except Exception:
+                        # Fallback to in-memory token for desktop mode
+                        if _desktop_google_token:
+                            # Check if token is still valid
+                            if _desktop_google_token_expiry and _desktop_google_token_expiry > time.time():
+                                access_token = _desktop_google_token
+                            else:
+                                # Token expired, clear it
+                                _desktop_google_token = None
+                                _desktop_google_token_expiry = None
+
+                    # If no token, skip this tick silently
+                    if not access_token:
+                        stop_flag.wait(interval)
+                        continue
+
+                    db = _db_registry.get(db_name)
+                    if not db:
+                        stop_flag.wait(interval)
+                        continue
+
+                    service = DriveService(access_token=access_token)
+                    service.upload_or_update(db_name, db.to_json())
+                    print(f"[LOCAL_SYNC] Uploaded {db_name} to Google Drive")
+                except Exception as e:
+                    # Ignore errors to keep loop resilient
+                    print(f"[LOCAL_SYNC] Error uploading {db_name}: {e}")
+                    pass
+                finally:
+                    stop_flag.wait(interval)
+
+        t = threading.Thread(target=_local_sync_loop, daemon=True)
+        t.start()
+        return {"status": "enabled", "database": db_name, "mode": "local"}
+
+
+@app.post("/api/databases/{db_name}/sync/stop")
+async def stop_sync(db_name: str):
+    # First try worker-backed cleanup
+    try:
+        r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+        r.ping()
+        r.delete(f"tdms:sync:token:{db_name}")
+        r.delete(f"tdms:sync:lock:{db_name}")
+        return {"status": "disabled", "database": db_name}
+    except Exception:
+        # Local fallback: signal local loop to stop
+        try:
+            stop_flags = getattr(start_sync, "_local_sync_flags", {})
+            flag = stop_flags.get(db_name)
+            if flag:
+                flag.set()
+                stop_flags.pop(db_name, None)
+        except Exception:
+            pass
+        return {"status": "disabled", "database": db_name, "mode": "local"}
+
+
+@app.get("/api/databases/{db_name}/sync/status")
+async def sync_status(db_name: str):
+    try:
+        r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+        r.ping()
+        token = r.get(f"tdms:sync:token:{db_name}")
+        last = r.get(f"tdms:sync:last_sync:{db_name}")
+        last_ts = float(last) if last else None
+        last_human = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_ts)) if last_ts else None
+        return {"database": db_name, "sync_enabled": bool(token), "mode": "worker", "last_sync_timestamp": last_ts, "last_sync_human": last_human}
+    except Exception:
+        # Redis unavailable (desktop mode). Report local loop state if running.
+        try:
+            stop_flags = getattr(start_sync, "_local_sync_flags", {})
+            flag = stop_flags.get(db_name)
+            local_running = bool(flag) and not flag.is_set()
+            return {"database": db_name, "sync_enabled": local_running, "mode": "local"}
+        except Exception:
+            return {"database": db_name, "sync_enabled": False, "mode": "local"}
+
+
 @app.post("/create_database")
 async def create_database(payload: Dict[str, Any]):
     global _active_db_name
@@ -336,6 +475,15 @@ async def delete_database(payload: Dict[str, Any]):
         print(f"Warning: Could not delete database file {name}: {e}")
         # Don't fail the request if file deletion fails
 
+    # Cleanup sync state in Redis (but keep Drive file intact)
+    try:
+        r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+        r.delete(f"tdms:sync:token:{name}")
+        r.delete(f"tdms:sync:lock:{name}")
+        r.delete(f"tdms:sync:last_sync:{name}")
+    except Exception:
+        pass
+
     if _active_db_name == name:
         if _db_registry:
             _active_db_name = sorted(_db_registry.keys())[0]
@@ -360,6 +508,40 @@ async def rename_database(payload: Dict[str, Any]):
     db = _db_registry.pop(old)
     db.name = new
     _db_registry[new] = db
+
+    # Rename file on disk if exists
+    try:
+        old_file = _get_db_file_path(old)
+        new_file = _get_db_file_path(new)
+        if old_file.exists():
+            old_file.rename(new_file)
+    except Exception:
+        pass
+
+    # Migrate sync state if present
+    try:
+        r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+        old_token_key = f"tdms:sync:token:{old}"
+        old_lock_key = f"tdms:sync:lock:{old}"
+        old_last_key = f"tdms:sync:last_sync:{old}"
+        token = r.get(old_token_key)
+        if token:
+            # stop old loop
+            r.delete(old_token_key)
+            r.delete(old_lock_key)
+            # migrate last_sync
+            last_sync = r.get(old_last_key)
+            if last_sync:
+                r.set(f"tdms:sync:last_sync:{new}", last_sync)
+                r.delete(old_last_key)
+            # start new loop with new token
+            new_token = str(uuid4())
+            r.set(f"tdms:sync:token:{new}", new_token)
+            from src.tasks.sync_tasks import sync_loop
+            sync_loop.delay(new, new_token)
+    except Exception:
+        pass
+
     if _active_db_name == old:
         _active_db_name = new
     return {"status": "ok", "active": _active_db_name}
@@ -593,6 +775,135 @@ async def import_database(payload: Dict[str, Any]):
 
 # Google Drive integration (service account)
 
+@app.post("/api/google/oauth/save_token")
+async def save_google_token(payload: Dict[str, Any]):
+    """
+    Save Google OAuth token to secrets/token.json for Celery worker.
+    Accepts either a refresh token or authorization code.
+    """
+    try:
+        from google_auth_oauthlib.flow import Flow
+        
+        refresh_token = payload.get("refresh_token")
+        code = payload.get("code")
+        
+        if not refresh_token and not code:
+            raise HTTPException(
+                status_code=400,
+                detail="Either refresh_token or code must be provided"
+            )
+        
+        # Use first available client secret file
+        client_secrets_dir = Path("secrets")
+        client_secret_files = list(client_secrets_dir.glob("client_secret_*.json"))
+        
+        if not client_secret_files:
+            raise HTTPException(
+                status_code=500,
+                detail="No client_secret file found in secrets/"
+            )
+        
+        if code:
+            # Exchange code for tokens
+            flow = Flow.from_client_secrets_file(
+                str(client_secret_files[0]),
+                scopes=["https://www.googleapis.com/auth/drive.file"],
+                redirect_uri="urn:ietf:wg:oauth:2.0:oob"
+            )
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            
+            token_data = {
+                "token": creds.token,
+                "refresh_token": creds.refresh_token,
+                "token_uri": creds.token_uri,
+                "client_id": creds.client_id,
+                "client_secret": creds.client_secret,
+                "scopes": creds.scopes
+            }
+        else:
+            # Use provided refresh token
+            with open(client_secret_files[0]) as f:
+                client_config = json.load(f)
+                if "installed" in client_config:
+                    client_info = client_config["installed"]
+                elif "web" in client_config:
+                    client_info = client_config["web"]
+                else:
+                    raise HTTPException(status_code=500, detail="Invalid client_secret format")
+            
+            token_data = {
+                "refresh_token": refresh_token,
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "client_id": client_info["client_id"],
+                "client_secret": client_info["client_secret"],
+                "scopes": ["https://www.googleapis.com/auth/drive.file"]
+            }
+        
+        token_path = Path("secrets/token.json")
+        with open(token_path, "w") as f:
+            json.dump(token_data, f, indent=2)
+        
+        return {
+            "status": "ok",
+            "message": "Google Drive credentials saved successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/google/oauth/save_access_token")
+async def save_access_token(payload: Dict[str, Any]):
+    """Persist short-lived access token in Redis so Celery can use it.
+
+    This supports the web popup flow where only an access token is available
+    (no refresh token). We store the token and an optional expiry hint.
+    
+    Falls back to in-memory storage in desktop mode when Redis is unavailable.
+    """
+    global _desktop_google_token, _desktop_google_token_expiry
+    
+    try:
+        token = payload.get("access_token")
+        expires_in = payload.get("expires_in")  # seconds
+        if not token:
+            raise HTTPException(status_code=400, detail="Missing access_token")
+
+        try:
+            r = redis.Redis.from_url(
+                os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True
+            )
+            r.ping()  # Test connection
+            r.set("tdms:google:access_token", token)
+            if expires_in:
+                try:
+                    ttl = int(expires_in)
+                    # set TTL slightly earlier to avoid edge expiry during requests
+                    ttl = max(1, ttl - 30)
+                    r.expire("tdms:google:access_token", ttl)
+                    r.set("tdms:google:token_expiry", str(int(time.time()) + ttl))
+                except Exception:
+                    pass
+            print(f"[SAVE_TOKEN] Saved access token to Redis")
+        except Exception as redis_err:
+            # Fallback to in-memory for desktop mode
+            _desktop_google_token = token
+            if expires_in:
+                try:
+                    ttl = int(expires_in) - 30
+                    _desktop_google_token_expiry = int(time.time()) + ttl
+                except Exception:
+                    _desktop_google_token_expiry = int(time.time()) + 3600
+            else:
+                _desktop_google_token_expiry = int(time.time()) + 3600
+            print(f"[SAVE_TOKEN] Saved access token to in-memory cache (Redis unavailable: {str(redis_err)})")
+
+        return {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 def _get_drive_service(scopes: List[str] | None = None):
     global service_account, build, MediaInMemoryUpload, MediaIoBaseDownload
@@ -672,6 +983,35 @@ def _get_drive_service(scopes: List[str] | None = None):
                 "Provide GOOGLE_SERVICE_ACCOUNT_INFO or GOOGLE_SERVICE_ACCOUNT_FILE"
             ) from exc
     return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+
+def _is_drive_configured() -> bool:
+    """Return True if Drive access is configured for uploads.
+
+    We consider configured if any of the following is available:
+    - Access token saved in Redis (from web popup flow)
+    - Service account credentials resolvable by _get_drive_service
+    """
+    try:
+        r = redis.Redis.from_url(
+            os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True
+        )
+        if r.get("tdms:google:access_token"):
+            return True
+    except Exception:
+        pass
+
+    # Try service-account path
+    try:
+        _ = _get_drive_service(["https://www.googleapis.com/auth/drive.file"])
+        return True
+    except Exception:
+        return False
+
+
+@app.get("/api/google/oauth/status")
+async def google_auth_status():
+    return {"configured": _is_drive_configured()}
 
 
 @app.post("/save_drive")

@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    container_name: tdms-web
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./databases:/app/databases
+      - ./secrets:/app/secrets
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+    command: uv run uvicorn src.web.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: tdms-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --appendfsync everysec
+    restart: unless-stopped
+
+  worker:
+    build: .
+    container_name: tdms-worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./databases:/app/databases
+      - ./secrets:/app/secrets
+    depends_on:
+      - redis
+    command: uv run celery -A src.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=100
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+

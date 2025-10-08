@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Table Database</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    {% if google_client_id and not is_desktop %}
-    <meta name="google-signin-client_id" content="{{ google_client_id }}" />
+    
+    <meta name="google-signin-client_id" content="959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
-    {% endif %}
+    
     <script>
-                                                                {% if google_client_id and not is_desktop %}
+                                                                
                                                                 let gapiInited = false;
                                                                 let googleAccessToken = null;
                                                                 let pickerLoaded = false;
@@ -29,7 +29,7 @@
                                                                         gapi.load("client", async () => {
                                                                           try {
                                                                             await gapi.client.init({
-                                                                              apiKey: "{{ google_api_key }}",
+                                                                              apiKey: "",
                                                                               discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"]
                                                                             });
                                                                             console.log("GAPI client initialized");
@@ -59,7 +59,7 @@
                                                                 }
                                                                 function signInGoogle() {
                                                                   return new Promise((resolve, reject) => {
-                                                                    if (!"{{ google_client_id }}")
+                                                                    if (!"959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com")
                                                                       return reject("No Google client id configured");
 
                                                                     // Show instructions for unverified app screen
@@ -67,7 +67,7 @@
 
                                                                     google.accounts.oauth2
                                                                       .initTokenClient({
-                                                                        client_id: "{{ google_client_id }}",
+                                                                        client_id: "959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com",
                                                                         scope:
                                                                           "https://www.googleapis.com/auth/drive.readonly",
                                                                         prompt: "",
@@ -82,32 +82,13 @@
                                                                       .requestAccessToken();
                                                                   });
                                                                 }
-                                    {% else %}
-                                    // Desktop mode: No Google functionality at all
-                                    let gapiInited = false;
-                                    let googleAccessToken = null;
-                                    let pickerLoaded = false;
-
-                                    async function initGapi() {
-                                      console.log("Desktop: Google API disabled");
-                                      return Promise.resolve();
-                                    }
-                                    function signInGoogle() {
-                                      toast("Desktop mode: Use manual file operations instead", "info");
-                                      return Promise.reject("Google Drive OAuth disabled in desktop mode");
-                                    }
-                                    {% endif %}
-                                                                {% if google_client_id and not is_desktop %}
+                                    
+                                                                
                                                                 async function ensureGoogleAuth() {
                                                                   if (!googleAccessToken) await signInGoogle();
                                                                   if (!gapiInited) await initGapi();
                                                                 }
-                                                                {% else %}
-                                                                async function ensureGoogleAuth() {
-                                                                  console.log("Desktop: No Google auth needed");
-                                                                  return Promise.resolve();
-                                                                }
-                                                                {% endif %}
+                                                                
 
                                                                 function waitUntil(cond, timeoutMs = 5000, intervalMs = 120) {
                                                                   return new Promise((resolve) => {
@@ -121,7 +102,7 @@
                                                                   });
                                                                 }
 
-                                                                {% if google_client_id %}
+                                                                
                                                                 async function ensurePickerReady() {
                                                                   if (!gapiInited) await initGapi();
                                                                   const ok = await waitUntil(
@@ -135,14 +116,14 @@
                                                                 function buildPickerViewDocs(onPicked) {
                                                                   if (
                                                                     !pickerLoaded ||
-                                                                    !"{{ google_api_key }}" ||
+                                                                    !"" ||
                                                                     !(window.google && window.google.picker)
                                                                   )
                                                                     return openDriveRestFallback();
                                                                   const picker = new google.picker.PickerBuilder()
                                                                     .setOAuthToken(googleAccessToken)
-                                                                    .setDeveloperKey("{{ google_api_key }}")
-                                                                    .setAppId("{{ google_app_id }}")
+                                                                    .setDeveloperKey("")
+                                                                    .setAppId("")
                                                                     .addView(
                                                                       new google.picker.DocsView()
                                                                         .setIncludeFolders(false)
@@ -164,14 +145,14 @@
                                                                 function buildPickerSave(name, onPicked) {
                                                                   if (
                                                                     !pickerLoaded ||
-                                                                    !"{{ google_api_key }}" ||
+                                                                    !"" ||
                                                                     !(window.google && window.google.picker)
                                                                   )
                                                                     return; // no-op; export already works via REST
                                                                   const picker = new google.picker.PickerBuilder()
                                                                     .setOAuthToken(googleAccessToken)
-                                                                    .setDeveloperKey("{{ google_api_key }}")
-                                                                    .setAppId("{{ google_app_id }}")
+                                                                    .setDeveloperKey("")
+                                                                    .setAppId("")
                                                                     .addView(new google.picker.DocsUploadView().setParent("root"))
                                                                     .enableFeature(google.picker.Feature.NAV_HIDDEN)
                                                                     .enableFeature(google.picker.Feature.MULTISELECT_DISABLED)
@@ -202,8 +183,8 @@
                                                                       const rt = localStorage.getItem('google_refresh_token');
                                                                       if (rt) {
                                                                         try {
-                                                                          const clientId = "{{ google_client_id or '' }}";
-                                                                          const clientSecret = "{{ google_client_secret or '' }}";
+                                                                          const clientId = "959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com";
+                                                                          const clientSecret = "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";
                                                                           const r = await fetch('https://oauth2.googleapis.com/token', {
                                                                             method: 'POST',
                                                                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -363,256 +344,7 @@
                                                                     type: "multipart/related; boundary=" + boundary,
                                                                   });
                                                                 }
-                                                                {% else %}
-                                                                // Desktop mode: Use browser-based authentication
-                                                                async function ensurePickerReady() {
-                                                                  return false; // Always use REST fallback in desktop mode
-                                                                }
-                                                                function buildPickerViewDocs(onPicked) {
-                                                                  // Desktop mode always uses REST fallback
-                                                                  return openDriveRestFallback();
-                                                                }
-                                                                function buildPickerSave(name, onPicked) {
-                                                                  toast("Google Drive export requires web browser authentication", "info");
-                                                                  const currentPort = window.location.port || '8000';
-                                                                  const redirectUri = `http://127.0.0.1:${currentPort}/oauth/callback`;
-                                                                  const authUrl = `https://accounts.google.com/oauth/authorize?client_id={{ google_client_id or 'YOUR_CLIENT_ID' }}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.readonly&response_type=code&access_type=offline`;
-                                                                  window.open(authUrl, "_blank");
-                                                                }
-
-                                                                // Desktop-specific functions
-                                                                function buildPickerViewDocs(onPicked) {
-                                                                  return openDriveRestFallback();
-                                                                }
-                                                                // Function is now defined directly on window object above
-
-                                                                // PKCE helper functions for secure desktop OAuth
-                                                                function generateCodeVerifier() {
-                                                                  const array = new Uint8Array(32);
-                                                                  crypto.getRandomValues(array);
-                                                                  return btoa(String.fromCharCode.apply(null, array))
-                                                                    .replace(/\+/g, '-')
-                                                                    .replace(/\//g, '_')
-                                                                    .replace(/=/g, '');
-                                                                }
-
-                                                                async function generateCodeChallenge(verifier) {
-                                                                  const encoder = new TextEncoder();
-                                                                  const data = encoder.encode(verifier);
-                                                                  const digest = await crypto.subtle.digest('SHA-256', data);
-                                                                  return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
-                                                                    .replace(/\+/g, '-')
-                                                                    .replace(/\//g, '_')
-                                                                    .replace(/=/g, '');
-                                                                }
-
-                                                                function generateState() {
-                                                                  const array = new Uint8Array(16);
-                                                                  crypto.getRandomValues(array);
-                                                                  return btoa(String.fromCharCode.apply(null, array))
-                                                                    .replace(/\+/g, '-')
-                                                                    .replace(/\//g, '_')
-                                                                    .replace(/=/g, '');
-                                                                }
-
-                                                                // Desktop Device-Code flow (fallback)
-                                                                async function deviceFlowAuth() {
-                                                                  try {
-                                                                    const clientId = "{{ google_client_id or '' }}";
-                                                                    const clientSecret = "{{ google_client_secret or '' }}";
-                                                                    const scope = 'https://www.googleapis.com/auth/drive.readonly';
-                                                                    const codeResp = await fetch('https://oauth2.googleapis.com/device/code', {
-                                                                      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                                                      body: new URLSearchParams({ client_id: clientId, scope })
-                                                                    });
-                                                                    if (!codeResp.ok) throw new Error('device/code failed');
-                                                                    const codeData = await codeResp.json();
-                                                                    const { user_code, verification_url, device_code, interval } = codeData;
-                                                                    alert(`Open: ${verification_url}\nEnter code: ${user_code}`);
-                                                                    window.open(verification_url, '_blank');
-                                                                    const pollMs = Math.max((interval || 5), 3) * 1000;
-                                                                    const start = Date.now();
-                                                                    while (Date.now() - start < 300000) {
-                                                                      const t = await fetch('https://oauth2.googleapis.com/token', {
-                                                                        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                                                        body: new URLSearchParams({
-                                                                          client_id: clientId,
-                                                                          device_code,
-                                                                          grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-                                                                          ...(clientSecret ? { client_secret: clientSecret } : {})
-                                                                        })
-                                                                      });
-                                                                      if (t.status === 428 || t.status === 400) { await new Promise(r=>setTimeout(r,pollMs)); continue; }
-                                                                      if (!t.ok) throw new Error('device token failed');
-                                                                      const td = await t.json();
-                                                                      googleAccessToken = td.access_token;
-                                                                      if (td.refresh_token) localStorage.setItem('google_refresh_token', td.refresh_token);
-                                                                      return true;
-                                                                    }
-                                                                  } catch (e) { console.error('Device flow error', e); }
-                                                                  return false;
-                                                                }
-                                                                async function openDriveRestFallback() {
-                                                                  if (!googleAccessToken) {
-                                                                    toast("Please authenticate with Google Drive first", "error");
-                                                                    return;
-                                                                  }
-
-                                                                  try {
-                                                                    // List recent JSON files via Drive REST
-                                                                    const listResp = await fetch(
-                                                                      "https://www.googleapis.com/drive/v3/files?q=mimeType%3D%22application%2Fjson%22&fields=files(id%2Cname%2CmodifiedTime)&orderBy=modifiedTime%20desc",
-                                                                      {
-                                                                        headers: { Authorization: "Bearer " + googleAccessToken },
-                                                                      }
-                                                                    );
-                                                                    if (listResp.status === 401) {
-                                                                      const rt = localStorage.getItem('google_refresh_token');
-                                                                      if (rt) {
-                                                                        try {
-                                                                          const clientId = "{{ google_client_id or '' }}";
-                                                                          const clientSecret = "{{ google_client_secret or '' }}";
-                                                                          const r = await fetch('https://oauth2.googleapis.com/token', {
-                                                                            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                                                            body: new URLSearchParams({
-                                                                              client_id: clientId, refresh_token: rt, grant_type: 'refresh_token',
-                                                                              ...(clientSecret ? { client_secret: clientSecret } : {})
-                                                                            })
-                                                                          });
-                                                                          if (r.ok) { const td = await r.json(); googleAccessToken = td.access_token; return await openDriveRestFallback(); }
-                                                                        } catch {}
-                                                                      }
-                                                                      const ok = await deviceFlowAuth();
-                                                                      if (ok) return await openDriveRestFallback();
-                                                                    }
-                                                                    if (!listResp.ok) throw new Error("Failed to list Drive files");
-
-                                                                    const listData = await listResp.json();
-                                                                    if (!listData.files || listData.files.length === 0) {
-                                                                      toast("No JSON files found in Google Drive", "info");
-                                                                      return;
-                                                                    }
-
-                                                                    // Show file selection dialog
-                                                                    const fileList = listData.files.map((f, i) => `${i + 1}. ${f.name} (${new Date(f.modifiedTime).toLocaleDateString()})`).join('\n');
-                                                                    const selection = prompt(`Select a file to import:\n\n${fileList}\n\nEnter the number (1-${listData.files.length}):`);
-
-                                                                    if (selection) {
-                                                                      const fileIndex = parseInt(selection) - 1;
-                                                                      if (fileIndex >= 0 && fileIndex < listData.files.length) {
-                                                                        const selectedFile = listData.files[fileIndex];
-
-                                                                        // Download the selected file
-                                                                        const contentResp = await fetch(
-                                                                          `https://www.googleapis.com/drive/v3/files/${selectedFile.id}?alt=media`,
-                                                                          {
-                                                                            headers: { Authorization: "Bearer " + googleAccessToken },
-                                                                          }
-                                                                        );
-
-                                                                        if (!contentResp.ok) throw new Error("Failed to download file");
-
-                                                                        const content = await contentResp.text();
-                                                                        const data = JSON.parse(content);
-
-                                                                        // Import the database
-                                                                        const res = await api("/import", "POST", data);
-                                                                        if (res && res.success) {
-                                                                          toast(`Database imported from ${selectedFile.name}`, "success");
-                                                                          await loadDatabases();
-                                                                        } else {
-                                                                          toast(`Import failed: ${res?.detail || "unknown error"}`, "error");
-                                                                        }
-                                                                      } else {
-                                                                        toast("Invalid selection", "error");
-                                                                      }
-                                                                    }
-                                                                  } catch (error) {
-                                                                    toast("Error accessing Google Drive: " + error.message, "error");
-                                                                  }
-                                                                }
-                                                                async function exportDbToDrive(name) {
-                                                                  toast("Opening browser for Google Drive authentication...", "info");
-
-                                                                  const currentPort = window.location.port || '8000';
-                                                                  const redirectUri = `http://127.0.0.1:${currentPort}/oauth/callback`;
-                                                                  const authUrl = `https://accounts.google.com/oauth/authorize?client_id={{ google_client_id or 'YOUR_CLIENT_ID' }}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/drive.readonly&response_type=code&access_type=offline`;
-
-                                                                  window.open(authUrl, "_blank");
-
-                                                                  const authCode = prompt("After authorizing in the browser, copy the 'code' parameter from the redirect URL and paste it here:");
-                                                                  if (authCode) {
-                                                                    try {
-                                                                      // Exchange auth code for access token
-                                                                      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-                                                                        method: "POST",
-                                                                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                                                                        body: new URLSearchParams({
-                                                                          client_id: "{{ google_client_id or 'YOUR_CLIENT_ID' }}",
-                                                                          client_secret: "{{ google_client_secret or 'YOUR_CLIENT_SECRET' }}",
-                                                                          code: authCode,
-                                                                          grant_type: "authorization_code",
-                                                                          redirect_uri: "http://localhost:8080/oauth/callback"
-                                                                        })
-                                                                      });
-
-                                                                      if (tokenResponse.ok) {
-                                                                        const tokenData = await tokenResponse.json();
-                                                                        googleAccessToken = tokenData.access_token;
-
-                                                                        // Export database
-                                                                        const res = await api("/export");
-                                                                        if (res) {
-                                                                          const blob = buildMultipart(
-                                                                            { name: name + ".json", parents: ["root"] },
-                                                                            JSON.stringify(res, null, 2)
-                                                                          );
-
-                                                                          const uploadResp = await fetch(
-                                                                            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-                                                                            {
-                                                                              method: "POST",
-                                                                              headers: { Authorization: "Bearer " + googleAccessToken },
-                                                                              body: blob,
-                                                                            }
-                                                                          );
-
-                                                                          if (uploadResp.ok) {
-                                                                            toast(`Database exported to Google Drive as ${name}.json`, "success");
-                                                                          } else {
-                                                                            throw new Error("Upload failed");
-                                                                          }
-                                                                        }
-                                                                      } else {
-                                                                        throw new Error("Failed to exchange authorization code");
-                                                                      }
-                                                                    } catch (error) {
-                                                                      toast("Export failed: " + error.message, "error");
-                                                                    }
-                                                                  }
-                                                                }
-                                                                function buildMultipart(meta, body) {
-                                                                  const boundary = "-------314159265358979323846";
-                                                                  const delimiter = "\r\n--" + boundary + "\r\n";
-                                                                  const closeDelim = "\r\n--" + boundary + "--";
-                                                                  const contentType = "application/json";
-                                                                  const base64Data = btoa(unescape(encodeURIComponent(body)));
-                                                                  const multipartRequestBody =
-                                                                    delimiter +
-                                                                    "Content-Type: application/json\r\n\r\n" +
-                                                                    JSON.stringify(meta) +
-                                                                    delimiter +
-                                                                    "Content-Type: " +
-                                                                    contentType +
-                                                                    "\r\n" +
-                                                                    "Content-Transfer-Encoding: base64\r\n\r\n" +
-                                                                    base64Data +
-                                                                    closeDelim;
-                                                                  return new Blob([multipartRequestBody], {
-                                                                    type: "multipart/related; boundary=" + boundary,
-                                                                  });
-                                                                }
-                                                                {% endif %}
+                                                                
 
                                                                 const TYPE_OPTIONS = [
                                                                   "integer",
@@ -638,31 +370,49 @@
                                                                     return text;
                                                                   }
                                                                 }
-                                                                // Unified authentication for sync - same as Store Drive flow
+                                                                // Minimal stub to avoid undefined reference during sync enabling
                                                                 async function authenticateGoogleDrive() {
+                                                                  // Always use the system browser flow with refresh token for Celery sync
                                                                   try {
-                                                                    const isDesktop = {{ is_desktop|lower }};
-                                                                    const clientId = "{{ google_client_id or '' }}";
-                                                                    const clientSecret = "{{ google_client_secret or '' }}";
+                                                                    const clientId = "959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com";
 
                                                                     if (!clientId) {
                                                                       toast("Google OAuth not configured", "error");
                                                                       return false;
                                                                     }
 
-                                                                    toast("Authenticating with Google Drive...", "info");
+                                                                    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+                                                                      `client_id=${encodeURIComponent(clientId)}&` +
+                                                                      `redirect_uri=${encodeURIComponent('urn:ietf:wg:oauth:2.0:oob')}&` +
+                                                                      `response_type=code&` +
+                                                                      `scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file')}&` +
+                                                                      `access_type=offline&` +
+                                                                      `prompt=consent`;
 
-                                                                    if (isDesktop) {
-                                                                      // Desktop: system browser with code pasting
-                                                                      // Wait for auth to complete via Promise
-                                                                      return new Promise((resolve) => {
-                                                                        performDesktopAuthSystemBrowser(clientId, clientSecret, (success) => resolve(success));
-                                                                      });
+                                                                    toast("Opening Google authorization in new window...", "info");
+                                                                    window.open(authUrl, '_blank');
+
+                                                                    const authCode = prompt(
+                                                                      "GOOGLE DRIVE AUTHENTICATION\n\n" +
+                                                                      "1. Sign in with Google in the new window\n" +
+                                                                      "2. Click 'Allow' to grant access\n" +
+                                                                      "3. Copy the authorization code\n" +
+                                                                      "4. Paste it below"
+                                                                    );
+
+                                                                    if (!authCode || !authCode.trim()) {
+                                                                      toast("Authorization cancelled", "info");
+                                                                      return false;
+                                                                    }
+
+                                                                    // Save via backend (will get refresh token)
+                                                                    const saveRes = await api("/api/google/oauth/save_token", "POST", { code: authCode.trim() });
+                                                                    if (saveRes && saveRes.status === "ok") {
+                                                                      toast("Google Drive authenticated successfully!", "success");
+                                                                      return true;
                                                                     } else {
-                                                                      // Web: Google Identity Services popup
-                                                                      return new Promise((resolve) => {
-                                                                        performWebAuth(clientId, (success) => resolve(success));
-                                                                      });
+                                                                      toast("Authentication failed: " + (saveRes?.detail || "unknown"), "error");
+                                                                      return false;
                                                                     }
                                                                   } catch (e) {
                                                                     toast("Error: " + (e.message || e), "error");
@@ -699,21 +449,11 @@
                                                                       console.log("Sync start response:", r);
 
                                                                       if (r && r.status === "enabled") {
-                                                                        // r.mode will be "worker" (web) or "local" (desktop fallback)
                                                                         toast(`Sync enabled for ${name}`, "success");
                                                                       } else if (r && r.detail) {
                                                                         console.log("Error detail:", r.detail);
-                                                                        // Check if sync service unavailable (desktop mode)
-                                                                        if (r.detail.toLowerCase().includes("sync service unavailable") ||
-                                                                            r.detail.toLowerCase().includes("redis") ||
-                                                                            r.detail.toLowerCase().includes("celery")) {
-                                                                          btn.dataset.syncing = "false";
-                                                                          btn.textContent = "Sync Drive";
-                                                                          // Desktop now supports local sync; do not hide button anymore
-                                                                          toast("Background worker unavailable. Using local sync instead after auth.", "warning");
-                                                                        }
                                                                         // Check if authentication error
-                                                                        else if (r.detail.toLowerCase().includes("not authenticated") ||
+                                                                        if (r.detail.toLowerCase().includes("not authenticated") ||
                                                                             r.detail.toLowerCase().includes("authenticate")) {
                                                                           // Revert UI and prompt for auth
                                                                           btn.dataset.syncing = "false";
@@ -767,8 +507,6 @@
                                                                   const res = await api("/databases");
                                                                   const list = document.getElementById("db-list");
                                                                   list.innerHTML = "";
-
-                                                                  // Render cards immediately with default state, then update async
                                                                   (res.databases || [])
                                                                     .filter((n) => n !== "default")
                                                                     .forEach((name) => {
@@ -784,20 +522,44 @@
                                                                     </div>`;
                                                                       list.appendChild(card);
                                                                     });
-
-                                                                  // Fetch sync status in parallel and update buttons asynchronously
-                                                                  (res.databases || [])
-                                                                    .filter((n) => n !== "default")
-                                                                    .forEach(async (name) => {
+                                                                  // Ensure every card has a sync button and initialize state from server
+                                                                  await Promise.all(
+                                                                    Array.from((res.databases || []).filter((n)=>n!=="default")).map(async (name) => {
                                                                       try {
+                                                                        // Fallback: inject missing sync button next to Open
+                                                                        let btn = list.querySelector(`[data-sync-toggle="${name}"]`);
+                                                                        if (!btn) {
+                                                                          const openBtn = list.querySelector(`[data-open="${name}"]`);
+                                                                          if (openBtn && openBtn.parentElement) {
+                                                                            const syncBtn = document.createElement("button");
+                                                                            syncBtn.className = "px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white";
+                                                                            syncBtn.setAttribute("data-sync-toggle", name);
+                                                                            syncBtn.setAttribute("data-syncing", "false");
+                                                                            syncBtn.textContent = "Sync Drive";
+                                                                            openBtn.parentElement.insertBefore(syncBtn, openBtn.nextSibling);
+                                                                            // Wire click handler
+                                                                            syncBtn.addEventListener("click", async () => {
+                                                                              try {
+                                                                                const st = await api('/api/google/oauth/status');
+                                                                                if (!st || !st.configured) {
+                                                                                  const ok = await authenticateGoogleDrive();
+                                                                                  if (!ok) return;
+                                                                                }
+                                                                              } catch {}
+                                                                              await toggleSyncWithAuth(syncBtn, name);
+                                                                            });
+                                                                            btn = syncBtn;
+                                                                          }
+                                                                        }
+                                                                        // Initialize state
                                                                         const st = await api(`/api/databases/${name}/sync/status`);
-                                                                        const btn = list.querySelector(`[data-sync-toggle="${name}"]`);
-                                                                        if (btn && st && st.sync_enabled) {
-                                                                          btn.dataset.syncing = "true";
-                                                                          btn.textContent = "Unsync Drive";
+                                                                        if (btn) {
+                                                                          if (st && st.sync_enabled) { btn.dataset.syncing = "true"; btn.textContent = "Unsync Drive"; }
+                                                                          else { btn.dataset.syncing = "false"; btn.textContent = "Sync Drive"; }
                                                                         }
                                                                       } catch {}
-                                                                    });
+                                                                    })
+                                                                  );
 
                                                                   Array.from(list.querySelectorAll("[data-open]")).forEach((btn) => {
                                                                     btn.addEventListener("click", async (e) => {
@@ -856,32 +618,14 @@
                                                                     .forEach((btn) => {
                                                                       btn.addEventListener("click", async () => {
                                                                         const name = btn.getAttribute("data-sync-toggle");
-                                                                        const currentState = btn.dataset.syncing === "true";
-
-                                                                        // If enabling sync, ALWAYS check for user token (not service account)
-                                                                        if (!currentState) {
-                                                                          // Check if we have a valid token (web or desktop mode)
-                                                                          const isDesktop = {{ is_desktop|lower }};
-                                                                          let hasValidToken = false;
-
-                                                                          if (isDesktop) {
-                                                                            // Desktop: check for refresh token + global access token
-                                                                            const refreshToken = localStorage.getItem('google_refresh_token');
-                                                                            hasValidToken = !!(refreshToken && googleAccessToken);
-                                                                          } else {
-                                                                            // Web: check for access token with expiry
-                                                                            const cachedToken = localStorage.getItem('google_access_token');
-                                                                            const tokenExpiry = localStorage.getItem('google_token_expiry');
-                                                                            hasValidToken = !!(cachedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry));
-                                                                          }
-
-                                                                          if (!hasValidToken) {
-                                                                            toast("Sync requires Google authentication...", "info");
+                                                                        // Unify with Store/Load: if not configured, trigger auth first
+                                                                        try {
+                                                                          const st = await api('/api/google/oauth/status');
+                                                                          if (!st || !st.configured) {
                                                                             const ok = await authenticateGoogleDrive();
                                                                             if (!ok) return;
                                                                           }
-                                                                        }
-
+                                                                        } catch {}
                                                                         await toggleSyncWithAuth(btn, name);
                                                                       });
                                                                     });
@@ -972,23 +716,7 @@
                                                                 function backToDatabases() {
                                                                   document.getElementById("tableView").classList.add("hidden");
                                                                   document.getElementById("dbView").classList.remove("hidden");
-
-                                                                  // Update sync button states immediately from cached local state before full reload
-                                                                  const list = document.getElementById("db-list");
-                                                                  list.querySelectorAll("[data-sync-toggle]").forEach(async (btn) => {
-                                                                    const name = btn.getAttribute("data-sync-toggle");
-                                                                    try {
-                                                                      const st = await api(`/api/databases/${name}/sync/status`);
-                                                                      if (st && st.sync_enabled) {
-                                                                        btn.dataset.syncing = "true";
-                                                                        btn.textContent = "Unsync Drive";
-                                                                      } else {
-                                                                        btn.dataset.syncing = "false";
-                                                                        btn.textContent = "Sync Drive";
-                                                                      }
-                                                                    } catch {}
-                                                                  });
-
+                                                                  loadDatabases();
                                                                   const t = document.getElementById("pageTitle");
                                                                   const s = document.getElementById("pageSubtitle");
                                                                   if (t) t.textContent = "Databases";
@@ -1714,11 +1442,11 @@
                                                                   }
 
                                                                   // Initialize Google APIs with better error handling
-                                                                  {% if google_client_id %}
+                                                                  
                                                                   try {
                                                                     console.log("Starting Google API initialization...");
                                                                     console.log("OAuth Config:", {
-                                                                      clientId: "{{ google_client_id }}",
+                                                                      clientId: "959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com",
                                                                       scopes: "drive.readonly only",
                                                                       userAgent: navigator.userAgent,
                                                                       currentUser: "Check browser account"
@@ -1732,7 +1460,7 @@
                                                                     console.error("Google API initialization failed:", error);
                                                                     toast("Google Drive integration failed to load. Check console (F12) for details.", "warning");
                                                                   }
-                                                                  {% endif %}
+                                                                  
                                                                 });
                                                                 async function renameActiveDb() {
                                                                   const input = document.getElementById("active-db-name");
@@ -1748,9 +1476,9 @@
                                                                               // Unified Load Drive function - auto-authorize + standard Google Drive picker for both desktop and web
                                                                               window.openDrivePickerAndImport = async function() {
                                                                                 try {
-                                                                                  const isDesktop = {% if is_desktop %}true{% else %}false{% endif %};
-                                                                                  const clientId = "{{ google_client_id or '' }}";
-                                                                                  const clientSecret = "{{ google_client_secret or '' }}";
+                                                                                  const isDesktop = false;
+                                                                                  const clientId = "959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com";
+                                                                                  const clientSecret = "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";
 
                                                                                   if (!clientId) {
                                                                                     toast("Google OAuth not configured", "error");
@@ -1759,9 +1487,7 @@
 
                                                                                   // Check for saved refresh token first
                                                                                   let refreshToken = localStorage.getItem('google_refresh_token');
-                                                                                  {% if is_desktop %}
-                                                                                  if ("{{ google_refresh_token or '' }}") refreshToken = "{{ google_refresh_token or '' }}";
-                                                                                  {% endif %}
+                                                                                  
 
                                                                                   // Try to refresh existing token
                                                                                   if (refreshToken && clientSecret) {
@@ -1888,72 +1614,6 @@
                                                                         // Improved Desktop authorization with system browser
                                                                         async function performDesktopAuthSystemBrowser(clientId, clientSecret, callback = null) {
                                                                           try {
-                                                                            // Check if we already have a valid refresh token
-                                                                            const cachedRefreshToken = localStorage.getItem('google_refresh_token');
-
-                                                                            if (cachedRefreshToken && googleAccessToken) {
-                                                                              // Already have a valid access token
-                                                                              console.log('Using cached access token');
-                                                                              toast("Google Drive connected!", "success");
-
-                                                                              if (callback) {
-                                                                                await callback(true);
-                                                                              } else {
-                                                                                await openStandardGooglePicker();
-                                                                              }
-                                                                              return;
-                                                                            }
-
-                                                                            if (cachedRefreshToken) {
-                                                                              // Try to refresh the access token
-                                                                              console.log('Refreshing access token from cached refresh token');
-                                                                              toast("Refreshing Google Drive access...", "info");
-
-                                                                              try {
-                                                                                const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-                                                                                  method: "POST",
-                                                                                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                                                                                  body: new URLSearchParams({
-                                                                                    client_id: clientId,
-                                                                                    client_secret: clientSecret,
-                                                                                    refresh_token: cachedRefreshToken,
-                                                                                    grant_type: "refresh_token"
-                                                                                  })
-                                                                                });
-
-                                                                                if (tokenResponse.ok) {
-                                                                                  const tokenData = await tokenResponse.json();
-                                                                                  googleAccessToken = tokenData.access_token;
-
-                                                                                  // Send to backend for sync
-                                                                                  try {
-                                                                                    await fetch('/api/google/oauth/save_access_token', {
-                                                                                      method: 'POST',
-                                                                                      headers: { 'Content-Type': 'application/json' },
-                                                                                      body: JSON.stringify({
-                                                                                        access_token: tokenData.access_token,
-                                                                                        expires_in: tokenData.expires_in || 3600
-                                                                                      })
-                                                                                    });
-                                                                                  } catch {}
-
-                                                                                  console.log('Token refreshed successfully');
-                                                                                  toast("Google Drive connected!", "success");
-
-                                                                                  if (callback) {
-                                                                                    await callback(true);
-                                                                                  } else {
-                                                                                    await openStandardGooglePicker();
-                                                                                  }
-                                                                                  return;
-                                                                                }
-                                                                              } catch (refreshError) {
-                                                                                console.log('Token refresh failed, will request new authorization');
-                                                                                // Fall through to full auth flow
-                                                                              }
-                                                                            }
-
-                                                                            // Need to get new authorization
                                                                             googleAccessToken = null;
 
                                                                             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -2007,25 +1667,12 @@
                                                                                   localStorage.setItem('google_refresh_token', tokenData.refresh_token);
                                                                                 }
 
-                                                                                // Send to backend for sync
-                                                                                try {
-                                                                                  await fetch('/api/google/oauth/save_access_token', {
-                                                                                    method: 'POST',
-                                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                                    body: JSON.stringify({
-                                                                                      access_token: tokenData.access_token,
-                                                                                      expires_in: tokenData.expires_in || 3600
-                                                                                    })
-                                                                                  });
-                                                                                } catch {}
-
                                                                                 toast("Google authorization successful!", "success");
 
-                                                                                // Execute callback (for sync) - don't open picker
+                                                                                // Execute callback or open standard Google Picker
                                                                                 if (callback) {
-                                                                                  await callback(true);
+                                                                                  await callback();
                                                                                 } else {
-                                                                                  // Only open picker if no callback (Load/Store Drive)
                                                                                   await openStandardGooglePicker();
                                                                                 }
                                                                               } else {
@@ -2040,17 +1687,11 @@
                                                                               }
                                                                             } else {
                                                                               toast("Authorization cancelled", "warning");
-                                                                              if (callback) {
-                                                                                callback(false);
-                                                                              }
                                                                             }
 
                                                                           } catch (error) {
                                                                             console.error("Desktop auth error:", error);
                                                                             toast(`Authorization failed: ${error.message}`, "error");
-                                                                            if (callback) {
-                                                                              callback(false);
-                                                                            }
                                                                           }
                                                                         }
 
@@ -2067,7 +1708,7 @@
                                                                               toast("Google Drive connected!", "success");
 
                                                                               if (callback) {
-                                                                                await callback(true);
+                                                                                await callback();
                                                                               } else {
                                                                                 await openStandardGooglePicker();
                                                                               }
@@ -2100,31 +1741,22 @@
                                                                                     toast("Google authorized successfully!", "success");
 
                                                                                     if (callback) {
-                                                                                      await callback(true);
+                                                                                      await callback();
                                                                                     } else {
                                                                                       await openStandardGooglePicker();
                                                                                     }
                                                                                   } else {
                                                                                     toast("Authorization failed", "error");
-                                                                                    if (callback) {
-                                                                                      await callback(false);
-                                                                                    }
                                                                                   }
                                                                                 }
                                                                               });
                                                                               client.requestAccessToken();
                                                                             } else {
                                                                               toast("Google services not available", "error");
-                                                                              if (callback) {
-                                                                                callback(false);
-                                                                              }
                                                                             }
                                                                           } catch (error) {
                                                                             console.error("Web auth error:", error);
                                                                             toast(`Authorization failed: ${error.message}`, "error");
-                                                                            if (callback) {
-                                                                              callback(false);
-                                                                            }
                                                                           }
                                                                         }
 
@@ -2228,9 +1860,9 @@
                                                                         // Store database to Google Drive with user OAuth
                                                                         async function storeDriveWithAuth(dbName) {
                                                                           try {
-                                                                            const isDesktop = {{ is_desktop|lower }};
-                                                                            const clientId = "{{ google_client_id or '' }}";
-                                                                            const clientSecret = "{{ google_client_secret or '' }}";
+                                                                            const isDesktop = false;
+                                                                            const clientId = "959795459883-p9maleogm01gsns6mi1uqnnigqo7e5ee.apps.googleusercontent.com";
+                                                                            const clientSecret = "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";
 
                                                                             if (!clientId) {
                                                                               toast("Google OAuth not configured", "error");
@@ -2239,9 +1871,7 @@
 
                                                                             // Check for saved refresh token first
                                                                             let refreshToken = localStorage.getItem('google_refresh_token');
-                                                                            {% if is_desktop %}
-                                                                            if ("{{ google_refresh_token or '' }}") refreshToken = "{{ google_refresh_token or '' }}";
-                                                                            {% endif %}
+                                                                            
 
                                                                             // Try to refresh existing token (desktop) or use cached token (web)
                                                                             if (refreshToken && clientSecret) {

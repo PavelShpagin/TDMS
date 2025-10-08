@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.10"
 dependencies = [
+    "celery>=5.5.3",
     "fastapi[all]==0.104.1",
     "google-api-python-client==2.108.0",
     "google-auth==2.23.4",
@@ -11,6 +12,7 @@ dependencies = [
     "google-auth-oauthlib==1.1.0",
     "python-dotenv==1.0.0",
     "pywebview==4.4.1",
+    "redis>=6.4.0",
 ]
 
 [dependency-groups]
