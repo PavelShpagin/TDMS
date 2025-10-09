@@ -19,6 +19,18 @@ def start_server():
     uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
 
 
+class DesktopAPI:
+    """API for desktop-specific operations"""
+    
+    def open_url(self, url: str) -> dict:
+        """Open URL in system default browser"""
+        try:
+            webbrowser.open(url)
+            return {"status": "ok"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+
 def main() -> None:
     """Main function to start the desktop application"""
     # Start the FastAPI server in a background thread
@@ -28,18 +40,22 @@ def main() -> None:
     # Wait a moment for the server to start
     time.sleep(2)
     
+    # Create API instance for JavaScript bridge
+    api = DesktopAPI()
+    
     # Create the webview window pointing to the local server
     window = webview.create_window(
         "TDMS Desktop Application",
-        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8000?desktop=true",
         width=1200,
         height=800,
         min_size=(800, 600),
-        resizable=True
+        resizable=True,
+        js_api=api  # Expose API to JavaScript
     )
     
-    # Start the webview
-    webview.start(debug=False)
+    # Start the webview with better settings
+    webview.start(debug=False, gui='edgechromium')  # Use EdgeChromium for better compatibility
 
 
 def build_desktop() -> None:

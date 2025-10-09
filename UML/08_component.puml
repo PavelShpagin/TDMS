@@ -1,9 +1,103 @@
 @startuml component
 !theme plain
-title TDMS - Simple Components
+title TDMS - System Components
 
-[UI] --> [API]
-[API] --> [Core]
-[Core] --> [Storage]
+package "Web Application" {
+  component [Web Interface\n(HTML/JS)] as UI
+  component [Jinja2 Templates] as Templates
+}
+
+package "FastAPI Backend" {
+  component [Main App\n(Lifespan)] as MainApp
+  component [Config\n(Settings)] as Config
+  component [Dependencies\n(AppState)] as Deps
+  
+  package "Routers" {
+    component [Databases Router] as DbRouter
+    component [Tables Router] as TableRouter
+    component [Operations Router] as OpRouter
+    component [Sync Router] as SyncRouter
+    component [Drive Router] as DriveRouter
+    component [Persistence Router] as PersistRouter
+  }
+}
+
+package "Core Domain" {
+  component [Database] as CoreDB
+  component [Table] as CoreTable
+  component [Column] as CoreCol
+  component [Row] as CoreRow
+  component [TypeValidator] as Validator
+  component [Operations\n(Union)] as Operations
+}
+
+package "External Services" {
+  component [DriveService\n(OAuth)] as DriveService
+}
+
+package "Background Tasks" {
+  component [Celery App] as Celery
+  component [Sync Tasks\n(sync_loop)] as SyncTasks
+}
+
+database "Redis" {
+  storage [Task Queue] as Queue
+  storage [Sync Tokens] as Tokens
+  storage [OAuth Tokens] as OAuth
+}
+
+database "Local Storage" {
+  folder [databases/] as LocalDB
+  folder [secrets/] as Secrets
+}
+
+cloud "Google Cloud" {
+  database [Google Drive\nAPI] as GDrive
+}
+
+' UI connections
+UI --> MainApp : HTTP REST
+MainApp --> Templates : render
+Templates --> UI : HTML
+
+' Router connections
+MainApp --> DbRouter : include
+MainApp --> TableRouter : include
+MainApp --> OpRouter : include
+MainApp --> SyncRouter : include
+MainApp --> DriveRouter : include
+MainApp --> PersistRouter : include
+
+DbRouter --> Config : get_settings()
+DbRouter --> Deps : get_app_state()
+TableRouter --> Deps : get_app_state()
+SyncRouter --> Deps : get_app_state()
+
+' Core connections
+Deps --> CoreDB : manages
+CoreDB --> CoreTable : contains
+CoreTable --> CoreCol : has schema
+CoreTable --> CoreRow : stores data
+CoreTable --> Validator : validates
+OpRouter --> Operations : union()
+
+' External service connections
+DriveRouter --> DriveService : upload/download
+SyncRouter --> DriveService : auto-sync
+DriveService --> GDrive : Google API
+DriveService --> Secrets : credentials
+
+' Background task connections
+SyncRouter --> Queue : queue task
+Celery --> Queue : consume tasks
+Celery --> SyncTasks : execute
+SyncTasks --> Tokens : check session
+SyncTasks --> OAuth : get token
+SyncTasks --> LocalDB : read JSON
+SyncTasks --> DriveService : upload
+
+' Persistence
+PersistRouter --> LocalDB : save/load
+Deps --> LocalDB : persist
 
 @enduml

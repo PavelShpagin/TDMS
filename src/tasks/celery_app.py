@@ -1,8 +1,28 @@
 import os
 from celery import Celery
+from redis import Redis, ConnectionPool
 
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Shared connection pool for efficient Redis connections
+_redis_pool = ConnectionPool.from_url(
+    REDIS_URL,
+    decode_responses=True,
+    max_connections=10,
+    socket_keepalive=True,
+    socket_connect_timeout=5,
+)
+
+
+def get_redis_client() -> Redis:
+    """Get Redis client from shared connection pool.
+    
+    This is more efficient than creating new connections each time,
+    and makes testing easier by providing a single injection point.
+    """
+    return Redis(connection_pool=_redis_pool)
+
 
 celery_app = Celery(
     "tdms",

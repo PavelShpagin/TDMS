@@ -6,29 +6,32 @@ left to right direction
 skinparam actorStyle awesome
 
 actor User
-actor "Google Drive" as GDrive
 
-rectangle "Working with Databases" {
-  usecase "Create new database" as UC1
-  usecase "Switch between databases" as UC2
+rectangle "Database Management" {
+  usecase "Create database" as UC1
+  usecase "Switch database" as UC2
   usecase "Delete database" as UC3
+  usecase "Rename database" as UC4
 }
 
-rectangle "Working with Tables" {
-  usecase "Create table" as UC4
-  usecase "Add data to table" as UC5
-  usecase "View table contents" as UC6
-  usecase "Combine two tables" as UC7
-  usecase "Delete table" as UC8
+rectangle "Table Operations" {
+  usecase "Create table" as UC5
+  usecase "View table" as UC6
+  usecase "Add row" as UC7
+  usecase "Edit row" as UC8
+  usecase "Delete row" as UC9
+  usecase "Union tables" as UC10
 }
 
-rectangle "Saving Your Work" {
-  usecase "Save locally" as UC9
-  usecase "Load from file" as UC10
-  usecase "Save to Google Drive" as UC11
-  usecase "Load from Google Drive" as UC12
+rectangle "Google Drive Sync" {
+  usecase "Authenticate" as UC11
+  usecase "Enable auto-sync" as UC12
+  usecase "Disable auto-sync" as UC13
+  usecase "Upload to Drive" as UC14
+  usecase "Download from Drive" as UC15
 }
 
+' User interactions
 User --> UC1
 User --> UC2
 User --> UC3
@@ -39,11 +42,20 @@ User --> UC7
 User --> UC8
 User --> UC9
 User --> UC10
-User --> UC11
 User --> UC12
+User --> UC13
+User --> UC14
+User --> UC15
 
-UC11 ..> GDrive : uploads
-UC12 ..> GDrive : downloads
+' Include relationships (mandatory prerequisite)
+UC12 ..> UC11 : <<include>>
+UC14 ..> UC11 : <<include>>
+UC15 ..> UC11 : <<include>>
+UC8 ..> UC6 : <<include>>
+UC9 ..> UC6 : <<include>>
+
+' Extend relationships (optional behavior)
+UC7 ..> UC6 : <<extend>>
 
 
 

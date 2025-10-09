@@ -1,19 +1,17 @@
-import os
 import json
 from pathlib import Path
-import redis
-from src.tasks.celery_app import celery_app
+from src.tasks.celery_app import celery_app, get_redis_client
 from src.services.drive_service import DriveService
-
-
-def _get_redis():
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    return redis.Redis.from_url(redis_url, decode_responses=True)
 
 
 @celery_app.task(name="tdms.sync_loop", bind=True, max_retries=3)
 def sync_loop(self, db_name: str, token: str, interval: int = 5):
-    r = _get_redis()
+    """Background task that syncs database to Google Drive every interval seconds.
+    
+    Uses shared Redis connection pool via get_redis_client() for efficiency.
+    Self-reschedules with countdown=interval for continuous sync.
+    """
+    r = get_redis_client()
 
     current_token = r.get(f"tdms:sync:token:{db_name}")
     if not current_token or current_token != token:
@@ -37,7 +35,8 @@ def sync_loop(self, db_name: str, token: str, interval: int = 5):
         
         try:
             # Try to get access token from Redis first
-            access_token = r.get("tdms:google:access_token")
+            access_token_val = r.get("tdms:google:access_token")
+            access_token = str(access_token_val) if access_token_val else None
             drive_service = DriveService(access_token=access_token)
             fid = drive_service.upload_or_update(db_name, data)
             status = "synced"

@@ -23,6 +23,15 @@ except Exception as e:
 # Import the web application
 from src.web.main import app
 
+# Start OAuth callback server
+try:
+    from src.desktop.oauth_server import get_oauth_server
+    oauth_server = get_oauth_server()
+    print("OAuth callback server started on http://localhost:8080")
+except Exception as e:
+    print(f"Warning: Could not start OAuth callback server: {e}")
+    oauth_server = None
+
 
 class DesktopServer:
     def __init__(self):
@@ -84,7 +93,7 @@ class DesktopServer:
         # Create the webview window pointing to the local server
         window = webview.create_window(
             "TDMS Desktop Application",
-            f"http://127.0.0.1:{self.port}",
+            f"http://127.0.0.1:{self.port}?desktop=true",
             width=1400,
             height=900,
             min_size=(1000, 700),
@@ -93,7 +102,7 @@ class DesktopServer:
         )
         
         # Start the webview
-        webview.start(debug=False)
+        webview.start(debug=False, gui='edgechromium')
 
 
 def main() -> None:

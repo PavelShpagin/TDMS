@@ -1,37 +1,104 @@
 @startuml deployment
 !theme plain
-title TDMS - Where Everything Runs
+title TDMS - Deployment Architecture
 
-node "Your Computer" {
-  component "Web Browser" {
-    artifact "TDMS Interface"
+actor "User" as User
+
+node "Client Machine" {
+  component "Web Browser" as Browser {
+    artifact "JavaScript UI"
   }
   
-  component "Python Server" {
-    artifact "FastAPI (port 8000)"
-    artifact "Core Logic"
-  }
-  
-  database "Local Storage" {
-    artifact "database.json files"
+  component "Desktop App" as Desktop {
+    artifact "PyWebView Wrapper"
   }
 }
 
-cloud "Google Cloud" {
-  database "Google Drive" {
+node "Docker Host (localhost or server)" {
+  
+  node "<<container>>\ntdms-web" as WebContainer {
+    component "FastAPI App" as FastAPI {
+      artifact "Routers"
+      artifact "Core Logic"
+      artifact "Lifespan Manager"
+    }
+  }
+  
+  node "<<container>>\ntdms-worker" as WorkerContainer {
+    component "Celery Worker" as Worker {
+      artifact "sync_loop task"
+    }
+  }
+  
+  node "<<container>>\ntdms-redis" as RedisContainer {
+    database "Redis" as Redis {
+      artifact "Task Queue"
+      artifact "Sync Tokens"
+      artifact "OAuth Cache"
+    }
+  }
+  
+  database "<<volume>>\ndatabases/" as DBVolume {
+    artifact "*.json"
+  }
+  
+  database "<<volume>>\nsecrets/" as SecretsVolume {
+    artifact "credentials.json"
+    artifact "token.json"
+  }
+  
+  database "<<volume>>\nredis_data/" as RedisVolume {
+    artifact "AOF persist"
+  }
+}
+
+cloud "Google Cloud Platform" {
+  component "OAuth 2.0" as OAuth {
+    artifact "Authorization"
+  }
+  
+  database "Google Drive API" as GDrive {
     artifact "Backup JSON files"
   }
-  
-  component "Auth Service" {
-    artifact "Service Account"
-  }
 }
 
-[Web Browser] --> [Python Server] : localhost:8000
-[Python Server] --> [Local Storage] : Read/Write
-[Python Server] --> [Google Drive] : Upload/Download
-[Google Drive] --> [Auth Service] : Authenticate
+' Client connections
+User --> Browser : interact
+User --> Desktop : interact
+Browser --> FastAPI : HTTP :8000
+Desktop --> FastAPI : HTTP :8000
 
+' Container network
+FastAPI --> Redis : redis://redis:6379
+Worker --> Redis : redis://redis:6379
+FastAPI --> DBVolume : read/write
+Worker --> DBVolume : read
+FastAPI --> SecretsVolume : read credentials
+Worker --> SecretsVolume : read credentials
+Redis --> RedisVolume : persist AOF
 
+' External connections
+FastAPI --> OAuth : authenticate
+FastAPI --> GDrive : REST API
+Worker --> GDrive : REST API
+OAuth --> GDrive : authorize
+
+note right of WebContainer
+  Port: 8000
+  Restart: unless-stopped
+  Env: REDIS_URL
+end note
+
+note right of WorkerContainer
+  Concurrency: 2
+  Max tasks per child: 100
+  Restart: unless-stopped
+end note
+
+note right of RedisContainer
+  Port: 6379
+  AOF: appendonly yes
+  Fsync: everysec
+end note
 
 @enduml
