@@ -49,18 +49,19 @@ class TestDesktopApp:
         # Verify sleep was called to wait for server
         mock_sleep.assert_called_once_with(2)
         
-        # Verify webview window was created with correct parameters
-        mock_webview.create_window.assert_called_once_with(
-            "TDMS Desktop Application",
-            "http://127.0.0.1:8000",
-            width=1200,
-            height=800,
-            min_size=(800, 600),
-            resizable=True
-        )
+        # Verify webview window was created (URL includes desktop flag and js_api is provided)
+        assert mock_webview.create_window.call_count == 1
+        call_args = mock_webview.create_window.call_args
+        assert call_args[0][0] == "TDMS Desktop Application"
+        assert "127.0.0.1:8000" in call_args[0][1]
+        assert call_args[1]["width"] == 1200
+        assert call_args[1]["height"] == 800
+        assert call_args[1]["min_size"] == (800, 600)
+        assert call_args[1]["resizable"] == True
+        assert "js_api" in call_args[1]  # Verify js_api is provided
         
         # Verify webview was started
-        mock_webview.start.assert_called_once_with(debug=False)
+        mock_webview.start.assert_called_once_with(debug=False, gui='edgechromium')
 
 
 class TestDesktopAppIntegration:

@@ -28,12 +28,12 @@ async def union_tables(payload: UnionRequest, db=Depends(get_active_db), state: 
         if len(base) > 60:
             base = base[:60]
         name = base
-        i = 1
+        counter = 1
         while name in db.tables:
-            i += 1
-            suffix = f"_{i}"
+            suffix = f" ({counter})"
             max_base = 60 - len(suffix)
             name = (base[:max_base] if len(base) > max_base else base) + suffix
+            counter += 1
         res.name = name
         db.tables[name] = res
         # Persist immediately so Celery sync sees it and users don't lose data

@@ -863,12 +863,17 @@
                                         const card = document.createElement("div");
                                         card.className =
                                           "rounded-xl border border-slate-800 bg-slate-950/80 p-4 flex items-center justify-between";
+                                        const downloadBtn = isDesktop ? `<button class="px-3 py-1.5 rounded bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-medium shadow-md transition-all" data-download-db="${name}" title="Download database as JSON">
+                                          <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                          </svg>Download</button>` : '';
                                         card.innerHTML = `<div class="min-w-0"><div class="font-semibold text-slate-100 truncate" title="${name}">${name}</div></div>
                                       <div class="flex flex-wrap gap-2 items-center justify-end">
-                                        <button class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200" data-open="${name}">Open</button>
-                      <button class="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white" data-sync-toggle="${name}" data-syncing="${isSyncing}">${isSyncing ? 'Unsync Drive' : 'Sync Drive'}</button>
-                                        <button class="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white" data-store-drive="${name}">Store Drive</button>
-                                        <button class="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white" data-delete-db="${name}">Delete</button>
+                                        <button class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-all" data-open="${name}">Open</button>
+                                        ${downloadBtn}
+                      <button class="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition-all" data-sync-toggle="${name}" data-syncing="${isSyncing}">${isSyncing ? 'Unsync Drive' : 'Sync Drive'}</button>
+                                        <button class="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-all" data-store-drive="${name}">Store Drive</button>
+                                        <button class="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white transition-all" data-delete-db="${name}">Delete</button>
                                       </div>`;
                                         list.appendChild(card);
                                       });
@@ -950,6 +955,16 @@
                       }
                                       });
                                     });
+
+                                    // Desktop-specific download button
+                                    if (isDesktop) {
+                                      Array.from(list.querySelectorAll("[data-download-db]")).forEach((btn) => {
+                                        btn.addEventListener("click", async () => {
+                                          const name = btn.getAttribute("data-download-db");
+                                          await desktopDownloadDatabase(name);
+                                        });
+                                      });
+                                    }
                   } finally {
                     isLoadingDatabases = false;
                   }
@@ -2426,6 +2441,253 @@
   <body
     class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100"
   >
+    {% if is_desktop %}
+    <div
+      id="desktop-menu-bar"
+      class="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 border-b-2 border-indigo-500/30 sticky top-0 z-50 backdrop-blur-md shadow-lg shadow-indigo-500/10"
+    >
+      <div
+        class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-center gap-3 text-sm"
+      >
+        <button
+          onclick="desktopLoadDatabase()"
+          class="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-medium shadow-md hover:shadow-emerald-500/50 transition-all duration-200"
+          title="Import JSON database file"
+        >
+          <span class="flex items-center gap-2">
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              ></path>
+            </svg>
+            Import JSON
+          </span>
+        </button>
+
+        <button
+          onclick="desktopDownloadAllDatabases()"
+          class="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-medium shadow-md hover:shadow-amber-500/50 transition-all duration-200"
+          title="Download all databases as JSON files"
+        >
+          <span class="flex items-center gap-2">
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              ></path>
+            </svg>
+            Download All Databases
+          </span>
+        </button>
+      </div>
+    </div>
+    <script>
+      const isDesktop = true;
+
+      async function desktopNewDatabase() {
+        try {
+          const result = await window.pywebview.api.new_database();
+          if (result.status === "ok") {
+            toast("New database created: " + result.database, "success");
+            scheduleLoadDatabases();
+          } else {
+            toast(
+              "Error: " + (result.message || "Failed to create database"),
+              "error"
+            );
+          }
+        } catch (e) {
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function desktopLoadDatabase() {
+        try {
+          const result = await window.pywebview.api.load_database_file();
+          if (result.status === "ok") {
+            const dbName = result.name || "database";
+            toast("Database loaded as: " + dbName, "success");
+            scheduleLoadDatabases();
+          } else if (result.status !== "cancelled") {
+            toast(
+              "Error: " + (result.message || "Failed to load database"),
+              "error"
+            );
+          }
+        } catch (e) {
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function desktopSaveDatabase() {
+        try {
+          const result = await window.pywebview.api.save_database_file();
+          if (result.status === "ok") {
+            toast("Database saved to: " + result.path, "success");
+          } else if (result.status !== "cancelled") {
+            toast(
+              "Error: " + (result.message || "Failed to save database"),
+              "error"
+            );
+          }
+        } catch (e) {
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function desktopImportCSV() {
+        try {
+          const result = await window.pywebview.api.import_csv_table();
+          if (result.status === "ok") {
+            toast(
+              "Imported " + result.rows_imported + " rows from: " + result.path,
+              "success"
+            );
+            scheduleLoadDatabases();
+          } else if (result.status !== "cancelled") {
+            toast(
+              "Error: " + (result.message || "Failed to import CSV"),
+              "error"
+            );
+          }
+        } catch (e) {
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function desktopExportTableCSV() {
+        const tables = await listTables();
+        if (!tables || tables.length === 0) {
+          toast("No tables available to export", "warning");
+          return;
+        }
+
+        const tableNames = tables.map((t) => t.name).join("\n");
+        const tableName = prompt(
+          "Enter table name to export:\n\n" + tableNames
+        );
+
+        if (!tableName) return;
+
+        try {
+          const result = await window.pywebview.api.export_table_csv(tableName);
+          if (result.status === "ok") {
+            toast(
+              "Exported " + result.rows + " rows to: " + result.path,
+              "success"
+            );
+          } else if (result.status !== "cancelled") {
+            toast(
+              "Error: " + (result.message || "Failed to export table"),
+              "error"
+            );
+          }
+        } catch (e) {
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function desktopExportAllTablesCSV() {
+        try {
+          const result = await window.pywebview.api.export_all_tables_csv();
+          if (result.status === "ok") {
+            toast(
+              "Exported " +
+                result.tables_exported +
+                " tables to: " +
+                result.directory,
+              "success"
+            );
+          } else if (result.status !== "cancelled") {
+            toast(
+              "Error: " + (result.message || "Failed to export tables"),
+              "error"
+            );
+          }
+        } catch (e) {
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function desktopDownloadDatabase(dbName) {
+        try {
+          const result = await window.pywebview.api.download_database(dbName);
+          if (result.status === "ok") {
+            toast("Database downloaded to: " + result.path, "success");
+          } else if (result.status !== "cancelled") {
+            toast(
+              "Error: " + (result.message || "Failed to download database"),
+              "error"
+            );
+          }
+        } catch (e) {
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function desktopDownloadAllDatabases() {
+        try {
+          const result = await window.pywebview.api.download_all_databases();
+          if (result.status === "ok") {
+            toast(
+              "Downloaded " +
+                result.databases_downloaded +
+                " databases to: " +
+                result.directory,
+              "success"
+            );
+          } else if (result.status === "partial") {
+            toast(
+              `Partial success: Downloaded ${result.databases_downloaded} database(s) with some errors: ${result.errors}`,
+              "warning"
+            );
+          } else if (result.status !== "cancelled") {
+            const errorMsg = result.message || "Failed to download databases";
+            console.error("Download error details:", result);
+            if (result.trace) {
+              console.error("Stack trace:", result.trace);
+            }
+            toast("Error: " + errorMsg, "error");
+          }
+        } catch (e) {
+          console.error("Exception in desktopDownloadAllDatabases:", e);
+          toast("Error: " + e.message, "error");
+        }
+      }
+
+      async function listTables() {
+        try {
+          const response = await fetch("/tables");
+          if (response.ok) {
+            const data = await response.json();
+            return data.tables || [];
+          }
+        } catch (e) {
+          console.error("Failed to list tables:", e);
+        }
+        return [];
+      }
+    </script>
+    {% else %}
+    <script>
+      const isDesktop = false;
+    </script>
+    {% endif %}
     <div
       id="toast"
       class="fixed top-4 right-4 px-4 py-2 rounded bg-emerald-600/90 backdrop-blur border border-emerald-500/40 shadow-lg transition-opacity opacity-0"
